@@ -23,7 +23,7 @@ public class TransactionService {
         BigDecimal balance = BigDecimal.ZERO;
         for (Transaction t : transactions) {
             if (YearMonth.from(t.getDate()).equals(month)) {
-                if (t.getType() == TransactionType.INCOME) {
+                if (t.getType() == TransactionType.Einnahmen) {
                     balance = balance.add(t.getAmount());
                 } else {
                     balance = balance.subtract(t.getAmount());
@@ -31,5 +31,19 @@ public class TransactionService {
             }
         }
         return balance; 
+    }
+
+    public boolean removeTransactionById(java.util.UUID id) {
+        return transactions.removeIf(t -> t.getId().equals(id));
+    }
+
+    public boolean updateTransaction(Transaction updatedTransaction) {
+        for (int i = 0; i < transactions.size(); i++) {
+            if (transactions.get(i).getId().equals(updatedTransaction.getId())) {
+                transactions.set(i, updatedTransaction);
+                return true;
+            }
+        }
+        return false;
     }
 }

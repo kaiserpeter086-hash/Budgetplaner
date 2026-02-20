@@ -10,10 +10,19 @@ public class Transaction {
     private BigDecimal amount;
     private TransactionType type;
     private LocalDate date;
-    private String category;
+    private CategoryType category;
 
-    public Transaction(String description, BigDecimal amount, TransactionType type, LocalDate date, String category) {
+    public Transaction(String description, BigDecimal amount, TransactionType type, LocalDate date, CategoryType category) {
         this.id = UUID.randomUUID();
+        this.description = description;
+        this.amount = amount;
+        this.type = type;
+        this.date = date;
+        this.category = category;
+    }
+
+    public Transaction(UUID id, String description, BigDecimal amount, TransactionType type, LocalDate date, CategoryType category) {
+        this.id = id;
         this.description = description;
         this.amount = amount;
         this.type = type;
@@ -41,7 +50,7 @@ public class Transaction {
         return date;
     }
 
-    public String getCategory() {
+    public CategoryType getCategory() {
         return category;
     }
 }

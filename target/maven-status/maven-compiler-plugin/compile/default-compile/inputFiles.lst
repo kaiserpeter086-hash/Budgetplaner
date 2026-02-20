@@ -1,5 +1,6 @@
 /Users/daniel/Code/Budgetplaner/budgetplanner/src/main/java/de/euerteam/App.java
 /Users/daniel/Code/Budgetplaner/budgetplanner/src/main/java/de/euerteam/budgetplanner/Main.java
+/Users/daniel/Code/Budgetplaner/budgetplanner/src/main/java/de/euerteam/budgetplanner/model/CategoryType.java
 /Users/daniel/Code/Budgetplaner/budgetplanner/src/main/java/de/euerteam/budgetplanner/model/Transaction.java
 /Users/daniel/Code/Budgetplaner/budgetplanner/src/main/java/de/euerteam/budgetplanner/model/TransactionType.java
 /Users/daniel/Code/Budgetplaner/budgetplanner/src/main/java/de/euerteam/budgetplanner/service/TransactionService.java
