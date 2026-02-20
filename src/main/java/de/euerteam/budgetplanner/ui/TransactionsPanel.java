@@ -25,7 +25,11 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.RowFilter;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 
 import de.euerteam.budgetplanner.model.CategoryType;
 import de.euerteam.budgetplanner.model.Transaction;
@@ -43,20 +47,24 @@ public class TransactionsPanel extends JPanel {
         }
     };
 
+    private final JTextField searchField = new JTextField(20);
+    private final TableRowSorter<DefaultTableModel> rowSorter = new TableRowSorter<>(tableModel);
+
     private final JTable table = new JTable(tableModel);
     {
         table.getColumnModel().getColumn(5).setMinWidth(0);
         table.getColumnModel().getColumn(5).setMaxWidth(0);
         table.getColumnModel().getColumn(5).setWidth(0);
+        table.setRowSorter(rowSorter);
     }
 
     private final JLabel balanceLabel = new JLabel("Monatliches Guthaben: 0,00 €");
-
     private final JTextField dateField = new JTextField(10);
     private final JTextField descriptionField = new JTextField(15);
     private final JFormattedTextField amountField = new JFormattedTextField(NumberFormat.getCurrencyInstance(Locale.GERMANY));
     private final JComboBox<TransactionType> typeComboBox = new JComboBox<>(TransactionType.values());
     private final JComboBox<CategoryType> categoryComboBox = new JComboBox<>(CategoryType.values());
+    
 
     
 
@@ -125,7 +133,30 @@ public class TransactionsPanel extends JPanel {
 
         add(formPanel, BorderLayout.NORTH);
         add(scrollPane, BorderLayout.CENTER);
+
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        searchPanel.add(new JLabel("Suchen:"));
+        searchPanel.add(searchField);
+
+        JButton clearSearchButton = new JButton("X");
+        clearSearchButton.setFocusable(false);
+        searchPanel.add(clearSearchButton);
+        clearSearchButton.addActionListener(e -> searchField.setText(""));
+
+        // `formPanel` enthält bereits `fieldsPanel` und die Steuerelemente (Button + Guthaben).
+        // Daher fügen wir nur das `searchPanel` im Süden hinzu und belassen `formPanel` im Norden.
+        add(searchPanel, BorderLayout.SOUTH);
         
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {applySearchFilter(); }
+            @Override
+            public void removeUpdate (DocumentEvent e) {applySearchFilter(); }
+            @Override
+            public void changedUpdate (DocumentEvent e) {applySearchFilter(); }
+        });
+
+        searchField.addActionListener(e -> table.requestFocusInWindow());
     }
 
     private void onAddTransaction() {
@@ -198,7 +229,7 @@ public class TransactionsPanel extends JPanel {
         balanceLabel.setText("Monatliches Guthaben: " + currencyFormat.format(balance));
     }
 
-    private void delteTransaction(){
+    private void deleteTransaction(){
         int row = table.getSelectedRow();
         if (row < 0){
             JOptionPane.showMessageDialog(this,"Bitte eine Transaktion auswählen");
@@ -317,5 +348,55 @@ public class TransactionsPanel extends JPanel {
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Ungültige Eingabe: " + ex.getMessage(), "Fehler", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void applySearchFilter() {
+        String text = searchField.getText();
+        if (text == null || text.trim().isEmpty()) {
+            rowSorter.setRowFilter(null);
+            return;
+        }
+        
+        String query = text.trim().toLowerCase();
+        rowSorter.setRowFilter(new RowFilter<DefaultTableModel,Integer>() {
+            @Override
+            public boolean include(RowFilter.Entry<? extends DefaultTableModel, ? extends Integer> entry) {
+                for (int col = 0; col <= 4; col++) {
+                    Object value = entry.getValue(col);
+                    if (value != null && value.toString().toLowerCase().contains(query)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
+        updateSearchBalance();
+    }
+
+    private void updateSearchBalance() {
+        NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
+        BigDecimal balance = BigDecimal.ZERO;
+
+        for (int viewRow = 0; viewRow < table.getRowCount(); viewRow++) {
+            Object amountObj = table.getValueAt(viewRow, 1);
+            Object typeObj = table.getValueAt(viewRow, 2);
+
+            BigDecimal amount;
+            try {
+                Number parsed = currencyFormat.parse(amountObj.toString().trim());
+                amount = BigDecimal.valueOf(parsed.doubleValue());
+            } catch (ParseException e) {
+                String cleaned = amountObj.toString().replaceAll("[^0-9,.-]", "").replace(',', '.').trim();
+                amount = new BigDecimal(cleaned);
+            }
+
+            TransactionType type = (TransactionType) typeObj;
+            if (type == TransactionType.Einnahmen) {
+                balance = balance.add(amount);
+            } else if (type == TransactionType.Ausgaben) {
+                balance = balance.subtract(amount);
+            }
+        }
+        balanceLabel.setText("Monatliches Guthaben: " + currencyFormat.format(balance));
     }
 }

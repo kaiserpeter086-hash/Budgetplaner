@@ -1,12 +1,13 @@
 package de.euerteam.budgetplanner.service;
 
-import de.euerteam.budgetplanner.model.TransactionType;
-import de.euerteam.budgetplanner.model.Transaction;
-
 import java.math.BigDecimal;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
-import java.time.YearMonth;
+
+import de.euerteam.budgetplanner.model.CategoryType;
+import de.euerteam.budgetplanner.model.Transaction;
+import de.euerteam.budgetplanner.model.TransactionType;
 
 public class TransactionService {
     private List<Transaction> transactions = new ArrayList<>();
@@ -45,5 +46,23 @@ public class TransactionService {
             }
         }
         return false;
+    }
+
+    public List<Transaction> filterByCategory(CategoryType category) {
+        return transactions.stream()
+                .filter(t -> t.getCategory() == category)
+                .toList();
+    }
+
+    public List<Transaction> filterByType(TransactionType type) {
+        return transactions.stream()
+                .filter(t -> t.getType() == type)
+                .toList();
+    }
+
+    public List<Transaction> searchTransactions(String description) {
+        return transactions.stream()
+                .filter(t -> t.getDescription().toLowerCase().contains(description.toLowerCase()))
+                .toList();
     }
 }
