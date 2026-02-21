@@ -11,6 +11,7 @@ import java.text.ParseException;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 
 import javax.swing.BorderFactory;
@@ -35,6 +36,11 @@ import de.euerteam.budgetplanner.model.CategoryType;
 import de.euerteam.budgetplanner.model.Transaction;
 import de.euerteam.budgetplanner.model.TransactionType;
 import de.euerteam.budgetplanner.service.TransactionService;
+
+import java.io.File;
+import javax.swing.JFileChooser;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import de.euerteam.budgetplanner.persistence.CsvPersistence;
 
 public class TransactionsPanel extends JPanel {
     private final TransactionService transactionService = new TransactionService();
@@ -116,11 +122,29 @@ public class TransactionsPanel extends JPanel {
         addButton.setOpaque(true);
         addButton.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
 
+        // Buttons für Export/Import
+        JButton exportButton = new JButton("Exportieren");
+        JButton importButton = new JButton("Importieren");
+
+        // Buttons für Bearbeiten/Löschen 
+        JButton editButton = new JButton("Bearbeiten");
+        JButton deleteButton = new JButton("Löschen");
+
         controlsPanel.add(addButton);
+        controlsPanel.add(editButton);
+        controlsPanel.add(deleteButton);
+        controlsPanel.add(Box.createHorizontalStrut(15));
+        controlsPanel.add(exportButton);
+        controlsPanel.add(importButton);
         controlsPanel.add(Box.createHorizontalStrut(20)); // Abstand
         controlsPanel.add(balanceLabel);
 
+        // Action Listener verknüpfen
         addButton.addActionListener(e -> onAddTransaction());
+        editButton.addActionListener(e -> editTransaction());
+        deleteButton.addActionListener(e -> deleteTransaction());
+        exportButton.addActionListener(e -> exportData());
+        importButton.addActionListener(e -> importData());
 
         // Initiales Guthaben anzeigen
         updateBalance();
@@ -398,5 +422,61 @@ public class TransactionsPanel extends JPanel {
             }
         }
         balanceLabel.setText("Monatliches Guthaben: " + currencyFormat.format(balance));
+    }
+
+    private void exportData() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Speicherort für CSV wählen");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("CSV Dateien (*.csv)", "csv"));
+        
+        int userSelection = fileChooser.showSaveDialog(this);
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
+            File fileToSave = fileChooser.getSelectedFile();
+            String filePath = fileToSave.getAbsolutePath();
+            
+            // Automatisch .csv anhängen, falls vergessen
+            if (!filePath.toLowerCase().endsWith(".csv")) {
+                filePath += ".csv";
+            }
+            
+            try {
+                CsvPersistence.exportToCSV(transactionService.getTransactions(), filePath);
+                JOptionPane.showMessageDialog(this, "Daten erfolgreich exportiert!", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Fehler beim Exportieren:\n" + ex.getMessage(), "Fehler", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void importData() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("CSV-Datei zum Importieren wählen");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("CSV Dateien (*.csv)", "csv"));
+        
+        int userSelection = fileChooser.showOpenDialog(this);
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
+            File fileToOpen = fileChooser.getSelectedFile();
+            
+            try {
+                // 1. Daten aus CSV laden
+                List<Transaction> importedTransactions = CsvPersistence.importFromCSV(fileToOpen.getAbsolutePath());
+                
+                // 2. Service aktualisieren
+                transactionService.setTransactions(importedTransactions);
+                
+                // 3. UI Tabelle leeren und neu befüllen
+                tableModel.setRowCount(0); 
+                for (Transaction t : importedTransactions) {
+                    addTransactionToTable(t);
+                }
+                
+                // 4. Guthaben aktualisieren
+                updateBalance();
+                
+                JOptionPane.showMessageDialog(this, "Daten erfolgreich importiert!", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Fehler beim Importieren:\n" + ex.getMessage(), "Fehler", JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 }

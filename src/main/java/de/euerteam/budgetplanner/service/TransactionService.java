@@ -65,4 +65,11 @@ public class TransactionService {
                 .filter(t -> t.getDescription().toLowerCase().contains(description.toLowerCase()))
                 .toList();
     }
+    
+    // Neue Methode für den Import
+    public void setTransactions(List<Transaction> newTransactions) {
+        this.transactions.clear();
+        this.transactions.addAll(newTransactions);
+    }
 }
+
