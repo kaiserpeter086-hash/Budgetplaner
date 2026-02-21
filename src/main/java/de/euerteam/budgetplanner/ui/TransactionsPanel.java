@@ -18,6 +18,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JFileChooser;
 import javax.swing.JFormattedTextField;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -28,12 +29,14 @@ import javax.swing.JTextField;
 import javax.swing.RowFilter;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 
 import de.euerteam.budgetplanner.model.CategoryType;
 import de.euerteam.budgetplanner.model.Transaction;
 import de.euerteam.budgetplanner.model.TransactionType;
+import de.euerteam.budgetplanner.persistence.CsvPersistence;
 import de.euerteam.budgetplanner.service.TransactionService;
 
 public class TransactionsPanel extends JPanel {
@@ -142,8 +145,17 @@ public class TransactionsPanel extends JPanel {
        controlsPanel.add(deleteButton);
        deleteButton.addActionListener(e -> deleteTransaction());
 
+       JButton exportButton = new JButton("Exportieren");
+       exportButton.setFocusable(false);
+       controlsPanel.add(exportButton);
+       exportButton.addActionListener(e -> exportToCSV());
+
+       JButton importButton = new JButton("Importieren");
+       importButton.setFocusable(false);
+       controlsPanel.add(importButton);
+       importButton.addActionListener(e -> importFromCSV());
+
         addButton.addActionListener(e -> onAddTransaction());
-        
 
         // Initiales Guthaben anzeigen
         updateBalance();
@@ -464,5 +476,85 @@ public class TransactionsPanel extends JPanel {
             }
         }
         balanceLabel.setText("Monatliches Guthaben: " + currencyFormat.format(balance));
+    }
+
+    private void exportToCSV() {
+        try {
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("CSV-Datei exportieren");
+            fileChooser.setFileFilter(new FileNameExtensionFilter("CSV Dateien (*.csv)", "csv"));
+            fileChooser.setSelectedFile(new java.io.File("Transaktionen.csv"));
+
+            int returnValue = fileChooser.showSaveDialog(this);
+            if (returnValue != JFileChooser.APPROVE_OPTION) {
+                return;
+            }
+
+            java.io.File selectedFile = fileChooser.getSelectedFile();
+            String filePath = selectedFile.getAbsolutePath();
+
+            // Stelle sicher, dass die Dateiendung ".csv" hat
+            if (!filePath.toLowerCase().endsWith(".csv")) {
+                filePath += ".csv";
+            }
+
+            CsvPersistence.exportToCSV(transactionService.getTransactions(), filePath);
+            JOptionPane.showMessageDialog(this, "Transaktionen erfolgreich exportiert nach:\n" + filePath, "Erfolg", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Fehler beim Export: " + ex.getMessage(), "Fehler", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void importFromCSV() {
+        try {
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("CSV-Datei importieren");
+            fileChooser.setFileFilter(new FileNameExtensionFilter("CSV Dateien (*.csv)", "csv"));
+
+            int returnValue = fileChooser.showOpenDialog(this);
+            if (returnValue != JFileChooser.APPROVE_OPTION) {
+                return;
+            }
+
+            java.io.File selectedFile = fileChooser.getSelectedFile();
+            String filePath = selectedFile.getAbsolutePath();
+
+            java.util.List<Transaction> importedTransactions = CsvPersistence.importFromCSV(filePath);
+
+            // Frage ob vorhandene Transaktionen gelöscht werden sollen
+            int confirm = JOptionPane.showConfirmDialog(
+                this,
+                "Möchten Sie die vorhandenen Transaktionen ersetzen oder die importierten Transaktionen hinzufügen?\n\n" +
+                "Ja = Ersetzen, Nein = Hinzufügen",
+                "Transaktionen importieren",
+                JOptionPane.YES_NO_CANCEL_OPTION
+            );
+
+            if (confirm == JOptionPane.CANCEL_OPTION) {
+                return;
+            }
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                // Ersetze alle Transaktionen
+                transactionService.setTransactions(importedTransactions);
+                incomeTableModel.setRowCount(0);
+                expenseTableModel.setRowCount(0);
+            } else {
+                // Füge importierte Transaktionen hinzu
+                for (Transaction t : importedTransactions) {
+                    transactionService.addTransaction(t);
+                }
+            }
+
+            // Zeige alle importierten Transaktionen in den Tabellen
+            for (Transaction t : importedTransactions) {
+                addTransactionToTable(t);
+            }
+
+            updateBalance();
+            JOptionPane.showMessageDialog(this, "Erfolgreich " + importedTransactions.size() + " Transaktionen importiert", "Erfolg", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Fehler beim Import: " + ex.getMessage(), "Fehler", JOptionPane.ERROR_MESSAGE);
+        }
     }
 }
