@@ -38,24 +38,36 @@ import de.euerteam.budgetplanner.service.TransactionService;
 
 public class TransactionsPanel extends JPanel {
     private final TransactionService transactionService = new TransactionService();
-    private final DefaultTableModel tableModel = new DefaultTableModel(
+    private final DefaultTableModel incomeTableModel = new DefaultTableModel(
         new Object[]{"Beschreibung", "Betrag", "Typ", "Datum", "Kategorie", "_OBJ_"}, 0
     ){
         @Override
-        public boolean isCellEditable(int row, int column) {
-            return false; // Alle Zellen nicht editierbar
-        }
+        public boolean isCellEditable(int row, int column) { return false; }
+    };
+
+    private final DefaultTableModel expenseTableModel = new DefaultTableModel(
+        new Object[]{"Beschreibung", "Betrag", "Typ", "Datum", "Kategorie", "_OBJ_"}, 0
+    ){
+        @Override
+        public boolean isCellEditable(int row, int column) { return false; }
     };
 
     private final JTextField searchField = new JTextField(20);
-    private final TableRowSorter<DefaultTableModel> rowSorter = new TableRowSorter<>(tableModel);
+    private final TableRowSorter<DefaultTableModel> incomeRowSorter = new TableRowSorter<>(incomeTableModel);
+    private final TableRowSorter<DefaultTableModel> expenseRowSorter = new TableRowSorter<>(expenseTableModel);
 
-    private final JTable table = new JTable(tableModel);
+    private final JTable incomeTable = new JTable(incomeTableModel);
+    private final JTable expenseTable = new JTable(expenseTableModel);
     {
-        table.getColumnModel().getColumn(5).setMinWidth(0);
-        table.getColumnModel().getColumn(5).setMaxWidth(0);
-        table.getColumnModel().getColumn(5).setWidth(0);
-        table.setRowSorter(rowSorter);
+        incomeTable.setRowSorter(incomeRowSorter);
+        expenseTable.setRowSorter(expenseRowSorter);
+        // hide object column in both tables
+        incomeTable.getColumnModel().getColumn(5).setMinWidth(0);
+        incomeTable.getColumnModel().getColumn(5).setMaxWidth(0);
+        incomeTable.getColumnModel().getColumn(5).setWidth(0);
+        expenseTable.getColumnModel().getColumn(5).setMinWidth(0);
+        expenseTable.getColumnModel().getColumn(5).setMaxWidth(0);
+        expenseTable.getColumnModel().getColumn(5).setWidth(0);
     }
 
     private final JLabel balanceLabel = new JLabel("Monatliches Guthaben: 0,00 €");
@@ -120,7 +132,18 @@ public class TransactionsPanel extends JPanel {
         controlsPanel.add(Box.createHorizontalStrut(20)); // Abstand
         controlsPanel.add(balanceLabel);
 
+       JButton editButton = new JButton("Bearbeiten");
+       editButton.setFocusable(false);
+       controlsPanel.add(editButton);
+       editButton.addActionListener(e -> editTransaction()); 
+
+       JButton deleteButton = new JButton("Löschen");
+       deleteButton.setFocusable(false);
+       controlsPanel.add(deleteButton);
+       deleteButton.addActionListener(e -> deleteTransaction());
+
         addButton.addActionListener(e -> onAddTransaction());
+        
 
         // Initiales Guthaben anzeigen
         updateBalance();
@@ -129,10 +152,17 @@ public class TransactionsPanel extends JPanel {
         formPanel.add(Box.createVerticalStrut(8));
         formPanel.add(controlsPanel);
 
-        JScrollPane scrollPane = new JScrollPane(table);
+        // zwei Tabellen nebeneinander: Einnahmen | Ausgaben
+        JPanel tablesPanel = new JPanel(new GridLayout(1,2,8,8));
+        JScrollPane incomeScroll = new JScrollPane(incomeTable);
+        incomeScroll.setBorder(BorderFactory.createTitledBorder("Einnahmen"));
+        JScrollPane expenseScroll = new JScrollPane(expenseTable);
+        expenseScroll.setBorder(BorderFactory.createTitledBorder("Ausgaben"));
+        tablesPanel.add(incomeScroll);
+        tablesPanel.add(expenseScroll);
 
         add(formPanel, BorderLayout.NORTH);
-        add(scrollPane, BorderLayout.CENTER);
+        add(tablesPanel, BorderLayout.CENTER);
 
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         searchPanel.add(new JLabel("Suchen:"));
@@ -156,7 +186,7 @@ public class TransactionsPanel extends JPanel {
             public void changedUpdate (DocumentEvent e) {applySearchFilter(); }
         });
 
-        searchField.addActionListener(e -> table.requestFocusInWindow());
+        searchField.addActionListener(e -> incomeTable.requestFocusInWindow());
     }
 
     private void onAddTransaction() {
@@ -211,7 +241,7 @@ public class TransactionsPanel extends JPanel {
     private void addTransactionToTable(Transaction t) {
         NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
         String formattedAmount = currencyFormat.format(t.getAmount());
-        tableModel.addRow(new Object[]{
+        Object[] row = new Object[]{
             t.getDescription(),
             formattedAmount,
             t.getType(),
@@ -219,7 +249,12 @@ public class TransactionsPanel extends JPanel {
             t.getDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(Locale.GERMANY)),
             t.getCategory(),
             t
-        });
+        };
+        if (t.getType() == TransactionType.Einnahmen) {
+            incomeTableModel.addRow(row);
+        } else {
+            expenseTableModel.addRow(row);
+        }
     }
 
     private void updateBalance() {
@@ -230,13 +265,26 @@ public class TransactionsPanel extends JPanel {
     }
 
     private void deleteTransaction(){
-        int row = table.getSelectedRow();
-        if (row < 0){
-            JOptionPane.showMessageDialog(this,"Bitte eine Transaktion auswählen");
-            
+        int viewRow = incomeTable.getSelectedRow();
+        JTable activeTable = null;
+        DefaultTableModel activeModel = null;
+        if (viewRow >= 0) {
+            activeTable = incomeTable;
+            activeModel = incomeTableModel;
+        } else {
+            viewRow = expenseTable.getSelectedRow();
+            if (viewRow >= 0) {
+                activeTable = expenseTable;
+                activeModel = expenseTableModel;
+            }
         }
-        int modelRow = table.convertRowIndexToModel(row);
-        Transaction t = (Transaction) tableModel.getValueAt(modelRow, 5);
+        if (activeTable == null) {
+            JOptionPane.showMessageDialog(this,"Bitte eine Transaktion auswählen");
+            return;
+        }
+
+        int modelRow = activeTable.convertRowIndexToModel(viewRow);
+        Transaction t = (Transaction) activeModel.getValueAt(modelRow, 5);
 
         NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(Locale.GERMANY);
@@ -253,20 +301,32 @@ public class TransactionsPanel extends JPanel {
         );
         if (confirm == JOptionPane.YES_OPTION) {
             transactionService.removeTransactionById(t.getId());
-            tableModel.removeRow(modelRow);
+            activeModel.removeRow(modelRow);
             updateBalance();
         }
     }
 
     private void editTransaction(){
-        int row = table.getSelectedRow();
-        if (row < 0){
+        int viewRow = incomeTable.getSelectedRow();
+        JTable activeTable = null;
+        DefaultTableModel activeModel = null;
+        if (viewRow >= 0) {
+            activeTable = incomeTable;
+            activeModel = incomeTableModel;
+        } else {
+            viewRow = expenseTable.getSelectedRow();
+            if (viewRow >= 0) {
+                activeTable = expenseTable;
+                activeModel = expenseTableModel;
+            }
+        }
+        if (activeTable == null) {
             JOptionPane.showMessageDialog(this,"Bitte eine Transaktion auswählen");
-            
+            return;
         }
 
-        int modelRow = table.convertRowIndexToModel(row);
-        Transaction oldT = (Transaction) tableModel.getValueAt(modelRow, 5);
+        int modelRow = activeTable.convertRowIndexToModel(viewRow);
+        Transaction oldT = (Transaction) activeModel.getValueAt(modelRow, 5);
 
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(Locale.GERMANY);
         NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
@@ -337,12 +397,12 @@ public class TransactionsPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Transaktion konnte nicht aktualisiert werden.", "Fehler", JOptionPane.ERROR_MESSAGE);
             }
 
-            tableModel.setValueAt(updatedTransaction.getDescription(), modelRow, 0);
-            tableModel.setValueAt(currencyFormat.format(updatedTransaction.getAmount()), modelRow, 1);
-            tableModel.setValueAt(updatedTransaction.getType(), modelRow, 2);
-            tableModel.setValueAt(updatedTransaction.getDate().format(dateTimeFormatter), modelRow, 3);
-            tableModel.setValueAt(updatedTransaction.getCategory(), modelRow, 4);
-            tableModel.setValueAt(updatedTransaction, modelRow, 5);
+            activeModel.setValueAt(updatedTransaction.getDescription(), modelRow, 0);
+            activeModel.setValueAt(currencyFormat.format(updatedTransaction.getAmount()), modelRow, 1);
+            activeModel.setValueAt(updatedTransaction.getType(), modelRow, 2);
+            activeModel.setValueAt(updatedTransaction.getDate().format(dateTimeFormatter), modelRow, 3);
+            activeModel.setValueAt(updatedTransaction.getCategory(), modelRow, 4);
+            activeModel.setValueAt(updatedTransaction, modelRow, 5);
 
             updateBalance();
         } catch (Exception ex) {
@@ -353,12 +413,13 @@ public class TransactionsPanel extends JPanel {
     private void applySearchFilter() {
         String text = searchField.getText();
         if (text == null || text.trim().isEmpty()) {
-            rowSorter.setRowFilter(null);
+            incomeRowSorter.setRowFilter(null);
+            expenseRowSorter.setRowFilter(null);
             return;
         }
         
         String query = text.trim().toLowerCase();
-        rowSorter.setRowFilter(new RowFilter<DefaultTableModel,Integer>() {
+        RowFilter<DefaultTableModel,Integer> rf = new RowFilter<DefaultTableModel,Integer>() {
             @Override
             public boolean include(RowFilter.Entry<? extends DefaultTableModel, ? extends Integer> entry) {
                 for (int col = 0; col <= 4; col++) {
@@ -369,32 +430,37 @@ public class TransactionsPanel extends JPanel {
                 }
                 return false;
             }
-        });
+        };
+        incomeRowSorter.setRowFilter(rf);
+        expenseRowSorter.setRowFilter(rf);
         updateSearchBalance();
     }
 
     private void updateSearchBalance() {
         NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
         BigDecimal balance = BigDecimal.ZERO;
+        // sum visible rows in both tables
+        JTable[] tables = new JTable[]{incomeTable, expenseTable};
+        for (JTable t : tables) {
+            for (int viewRow = 0; viewRow < t.getRowCount(); viewRow++) {
+                Object amountObj = t.getValueAt(viewRow, 1);
+                Object typeObj = t.getValueAt(viewRow, 2);
 
-        for (int viewRow = 0; viewRow < table.getRowCount(); viewRow++) {
-            Object amountObj = table.getValueAt(viewRow, 1);
-            Object typeObj = table.getValueAt(viewRow, 2);
+                BigDecimal amount;
+                try {
+                    Number parsed = currencyFormat.parse(amountObj.toString().trim());
+                    amount = BigDecimal.valueOf(parsed.doubleValue());
+                } catch (ParseException e) {
+                    String cleaned = amountObj.toString().replaceAll("[^0-9,.-]", "").replace(',', '.').trim();
+                    amount = new BigDecimal(cleaned);
+                }
 
-            BigDecimal amount;
-            try {
-                Number parsed = currencyFormat.parse(amountObj.toString().trim());
-                amount = BigDecimal.valueOf(parsed.doubleValue());
-            } catch (ParseException e) {
-                String cleaned = amountObj.toString().replaceAll("[^0-9,.-]", "").replace(',', '.').trim();
-                amount = new BigDecimal(cleaned);
-            }
-
-            TransactionType type = (TransactionType) typeObj;
-            if (type == TransactionType.Einnahmen) {
-                balance = balance.add(amount);
-            } else if (type == TransactionType.Ausgaben) {
-                balance = balance.subtract(amount);
+                TransactionType type = (TransactionType) typeObj;
+                if (type == TransactionType.Einnahmen) {
+                    balance = balance.add(amount);
+                } else if (type == TransactionType.Ausgaben) {
+                    balance = balance.subtract(amount);
+                }
             }
         }
         balanceLabel.setText("Monatliches Guthaben: " + currencyFormat.format(balance));
