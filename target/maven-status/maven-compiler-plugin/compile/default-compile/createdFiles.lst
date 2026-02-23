@@ -1,0 +1,16 @@
+de/euerteam/budgetplanner/ui/BudgetsPanel.class
+de/euerteam/budgetplanner/persistence/CsvPersistence.class
+de/euerteam/budgetplanner/ui/TransactionsPanel$2.class
+de/euerteam/budgetplanner/model/CategoryType.class
+de/euerteam/budgetplanner/model/TransactionType.class
+de/euerteam/budgetplanner/ui/TransactionsPanel$4.class
+de/euerteam/budgetplanner/Main.class
+de/euerteam/budgetplanner/ui/TransactionsPanel.class
+de/euerteam/budgetplanner/ui/StatisticsPanel.class
+de/euerteam/budgetplanner/ui/TransactionsPanel$3.class
+de/euerteam/budgetplanner/ui/StatisticPanel.class
+de/euerteam/App.class
+de/euerteam/budgetplanner/ui/TransactionsPanel$1.class
+de/euerteam/budgetplanner/service/TransactionService.class
+de/euerteam/budgetplanner/ui/MainFrame.class
+de/euerteam/budgetplanner/model/Transaction.class

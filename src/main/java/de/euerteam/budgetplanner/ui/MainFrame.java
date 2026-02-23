@@ -3,6 +3,8 @@ package de.euerteam.budgetplanner.ui;
 import javax.swing.JFrame;
 import javax.swing.JTabbedPane;
 
+import de.euerteam.budgetplanner.service.TransactionService;
+
 public class MainFrame extends JFrame {
 
     public MainFrame() {
@@ -11,10 +13,23 @@ public class MainFrame extends JFrame {
         setSize(1000, 650);
         setLocationRelativeTo(null);
 
+        TransactionService transactionService = new TransactionService();
+
         JTabbedPane tabs = new JTabbedPane();
-        tabs.addTab("Buchungen", new TransactionsPanel());
-        tabs.addTab("Statistiken", new StatisticsPanel());
-        tabs.addTab("Budgets", new BudgetsPanel());
+
+        TransactionsPanel transactionsPanel = new TransactionsPanel(transactionService);
+        StatisticPanel statisticPanel = new StatisticPanel(transactionService);
+        //BudgetsPanel budgetsPanel = new BudgetsPanel(transactionService);
+
+        tabs.addTab("Buchungen", transactionsPanel);
+        tabs.addTab("Statistiken", statisticPanel);
+        //tabs.addTab("Budgets", budgetsPanel);
+
+        tabs.addChangeListener(e -> {
+            if (tabs.getSelectedComponent() == statisticPanel){
+                statisticPanel.refreshCharts();
+            }
+        });
 
         setContentPane(tabs);
     }

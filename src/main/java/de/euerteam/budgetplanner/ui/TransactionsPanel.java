@@ -40,7 +40,7 @@ import de.euerteam.budgetplanner.persistence.CsvPersistence;
 import de.euerteam.budgetplanner.service.TransactionService;
 
 public class TransactionsPanel extends JPanel {
-    private final TransactionService transactionService = new TransactionService();
+    private final TransactionService transactionService;
     private final DefaultTableModel incomeTableModel = new DefaultTableModel(
         new Object[]{"Beschreibung", "Betrag", "Typ", "Datum", "Kategorie", "_OBJ_"}, 0
     ){
@@ -83,7 +83,8 @@ public class TransactionsPanel extends JPanel {
 
     
 
-    public TransactionsPanel() {
+    public TransactionsPanel(TransactionService transactionService) {
+        this.transactionService = transactionService;
         setLayout(new BorderLayout());
 
         // Deutsches Datumsformat: TT.MM.JJJJ
