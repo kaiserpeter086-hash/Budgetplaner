@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -31,6 +32,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 
 import de.euerteam.budgetplanner.model.CategoryType;
@@ -40,6 +42,7 @@ import de.euerteam.budgetplanner.persistence.CsvPersistence;
 import de.euerteam.budgetplanner.service.TransactionService;
 
 public class TransactionsPanel extends JPanel {
+    private static final DateTimeFormatter TABLE_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(Locale.GERMANY);
     private final TransactionService transactionService;
     private final DefaultTableModel incomeTableModel = new DefaultTableModel(
         new Object[]{"Beschreibung", "Betrag", "Typ", "Datum", "Kategorie", "_OBJ_"}, 0
@@ -64,6 +67,9 @@ public class TransactionsPanel extends JPanel {
     {
         incomeTable.setRowSorter(incomeRowSorter);
         expenseTable.setRowSorter(expenseRowSorter);
+
+        configureDateSorting(incomeRowSorter);
+        configureDateSorting(expenseRowSorter);
         // hide object column in both tables
         incomeTable.getColumnModel().getColumn(5).setMinWidth(0);
         incomeTable.getColumnModel().getColumn(5).setMaxWidth(0);
@@ -241,6 +247,26 @@ public class TransactionsPanel extends JPanel {
             }
 
             Transaction t = new Transaction(description, amount, type, date, category);
+
+            if (type == TransactionType.Ausgaben && category != CategoryType.Auswahl){
+                YearMonth month = YearMonth.from(date);
+                BigDecimal budget = transactionService.getBudgetForMonth(month, category);
+                BigDecimal currentExpenses = transactionService
+                        .getExpensesCategoryForMonth(month)
+                        .getOrDefault(category, BigDecimal.ZERO);
+                BigDecimal newExpenseTotal = currentExpenses.add(amount);
+
+                if (budget.compareTo(BigDecimal.ZERO) > 0  && newExpenseTotal.compareTo(budget) > 0){
+                    NumberFormat warningFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
+                    JOptionPane.showMessageDialog(
+                        this,
+                        "Achtung: Budget für " + category + " in " + month + " überschritten!\n"
+                        + "Budget: " + warningFormat.format(budget) + " | Neu: " + warningFormat.format(newExpenseTotal),
+                        "Budgetwarnung",
+                        JOptionPane.WARNING_MESSAGE);
+                }
+            }
+
             // Persist the transaction in the service so balance calculations work
             transactionService.addTransaction(t);
             addTransactionToTable(t);
@@ -259,14 +285,16 @@ public class TransactionsPanel extends JPanel {
             formattedAmount,
             t.getType(),
             // Datum im deutschen Format anzeigen
-            t.getDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(Locale.GERMANY)),
+            t.getDate().format(TABLE_DATE_FORMATTER),
             t.getCategory(),
             t
         };
         if (t.getType() == TransactionType.Einnahmen) {
             incomeTableModel.addRow(row);
+            incomeRowSorter.sort();
         } else {
             expenseTableModel.addRow(row);
+            expenseRowSorter.sort();
         }
     }
 
@@ -275,6 +303,7 @@ public class TransactionsPanel extends JPanel {
         BigDecimal balance = transactionService.getMonthlyBalance(currentMonth);
         NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
         balanceLabel.setText("Monatliches Guthaben: " + currencyFormat.format(balance));
+        updateBalanceColor(balance);
     }
 
     private void deleteTransaction(){
@@ -300,8 +329,7 @@ public class TransactionsPanel extends JPanel {
         Transaction t = (Transaction) activeModel.getValueAt(modelRow, 5);
 
         NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
-        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(Locale.GERMANY);
-
+        DateTimeFormatter dateTimeFormatter = TABLE_DATE_FORMATTER;
         int confirm = JOptionPane.showConfirmDialog(
             this, 
             "Möchten Sie die folgende Transaktion wirklich löschen?\n" 
@@ -341,7 +369,7 @@ public class TransactionsPanel extends JPanel {
         int modelRow = activeTable.convertRowIndexToModel(viewRow);
         Transaction oldT = (Transaction) activeModel.getValueAt(modelRow, 5);
 
-        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(Locale.GERMANY);
+        DateTimeFormatter dateTimeFormatter = TABLE_DATE_FORMATTER;
         NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
 
         JTextField date = new JTextField(oldT.getDate().format(dateTimeFormatter),10);
@@ -417,6 +445,9 @@ public class TransactionsPanel extends JPanel {
             activeModel.setValueAt(updatedTransaction.getCategory(), modelRow, 4);
             activeModel.setValueAt(updatedTransaction, modelRow, 5);
 
+            if (activeTable == incomeTable) incomeRowSorter.sort();
+            else expenseRowSorter.sort();
+
             updateBalance();
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Ungültige Eingabe: " + ex.getMessage(), "Fehler", JOptionPane.ERROR_MESSAGE);
@@ -477,6 +508,17 @@ public class TransactionsPanel extends JPanel {
             }
         }
         balanceLabel.setText("Monatliches Guthaben: " + currencyFormat.format(balance));
+        updateBalanceColor(balance);
+    }
+
+    private void updateBalanceColor(BigDecimal balance) {
+        if (balance.compareTo(BigDecimal.ZERO) > 0) {
+            balanceLabel.setForeground(new Color(0, 128, 0));
+        } else if (balance.compareTo(BigDecimal.ZERO) < 0) {
+            balanceLabel.setForeground(Color.RED);
+        } else {
+            balanceLabel.setForeground(Color.BLACK);
+        }
     }
 
     private void exportToCSV() {
@@ -557,5 +599,15 @@ public class TransactionsPanel extends JPanel {
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Fehler beim Import: " + ex.getMessage(), "Fehler", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void configureDateSorting(TableRowSorter<? extends TableModel> sorter){
+        sorter.setComparator(3, (left, right) -> {
+            LocalDate firstDate = LocalDate.parse(left.toString(), TABLE_DATE_FORMATTER);
+            LocalDate secondDate = LocalDate.parse(right.toString(), TABLE_DATE_FORMATTER);
+            return firstDate.compareTo(secondDate);
+        });
+        sorter.setSortKeys(List.of(new javax.swing.RowSorter.SortKey(3, javax.swing.SortOrder.ASCENDING)));
+        sorter.setSortsOnUpdates(true);
     }
 }

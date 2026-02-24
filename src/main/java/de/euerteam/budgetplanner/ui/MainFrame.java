@@ -19,15 +19,18 @@ public class MainFrame extends JFrame {
 
         TransactionsPanel transactionsPanel = new TransactionsPanel(transactionService);
         StatisticPanel statisticPanel = new StatisticPanel(transactionService);
-        //BudgetsPanel budgetsPanel = new BudgetsPanel(transactionService);
+        BudgetsPanel budgetsPanel = new BudgetsPanel(transactionService);
 
         tabs.addTab("Buchungen", transactionsPanel);
         tabs.addTab("Statistiken", statisticPanel);
-        //tabs.addTab("Budgets", budgetsPanel);
+        tabs.addTab("Budgets", budgetsPanel);
 
         tabs.addChangeListener(e -> {
             if (tabs.getSelectedComponent() == statisticPanel){
                 statisticPanel.refreshCharts();
+            }
+            if (tabs.getSelectedComponent() == budgetsPanel){
+                budgetsPanel.refreshData();
             }
         });
 
