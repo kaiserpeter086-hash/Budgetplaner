@@ -129,7 +129,7 @@ public class TransactionsPanel extends JPanel {
     fieldsPanel.add(categoryComboBox);
 
         JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton addButton = new JButton("Transaktion hinzufügen");
+        JButton addButton = new JButton("Neue Transaktion");
         // Sichtbarer machen: feste Größe, kontrastreiche Farben und kein Fokus-Highlight
         addButton.setPreferredSize(new Dimension(180, 30));
         addButton.setFocusable(false);
@@ -162,13 +162,13 @@ public class TransactionsPanel extends JPanel {
        controlsPanel.add(importButton);
        importButton.addActionListener(e -> importFromCSV());
 
-        addButton.addActionListener(e -> onAddTransaction());
+        addButton.addActionListener(e -> showNewTransactionDialog());
 
         // Initiales Guthaben anzeigen
         updateBalance();
 
-        formPanel.add(fieldsPanel);
-        formPanel.add(Box.createVerticalStrut(8));
+        // Felder für direkte Eingabe nicht mehr direkt im Hauptpanel anzeigen.
+        // Stattdessen öffnet der Button ein Dialogfenster zur Eingabe.
         formPanel.add(controlsPanel);
 
         // zwei Tabellen nebeneinander: Einnahmen | Ausgaben
@@ -270,6 +270,125 @@ public class TransactionsPanel extends JPanel {
             // Persist the transaction in the service so balance calculations work
             transactionService.addTransaction(t);
             addTransactionToTable(t);
+            updateBalance();
+
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Ungültige Eingabe: " + ex.getMessage(), "Fehler", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void showNewTransactionDialog() {
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(Locale.GERMANY);
+        JTextField date = new JTextField(LocalDate.now().format(dateFormatter), 10);
+        JTextField description = new JTextField(15);
+        NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
+        JFormattedTextField amount = new JFormattedTextField(currencyFormat);
+        amount.setValue(0.00);
+        JComboBox<TransactionType> type = new JComboBox<>(TransactionType.values());
+        JComboBox<CategoryType> category = new JComboBox<>(CategoryType.values());
+        category.setEditable(true);
+
+        JPanel panel = new JPanel(new GridLayout(0, 2, 8, 8));
+        panel.add(new JLabel("Datum:")); panel.add(date);
+        panel.add(new JLabel("Beschreibung:")); panel.add(description);
+        panel.add(new JLabel("Betrag:")); panel.add(amount);
+        panel.add(new JLabel("Typ:")); panel.add(type);
+        panel.add(new JLabel("Kategorie:")); panel.add(category);
+
+        // recurrence holder
+        final boolean[] isRecurring = new boolean[] { false };
+        final String[] recurFreq = new String[] { "MONTHLY" };
+        final LocalDate[] recurEndDate = new LocalDate[] { null };
+        final Integer[] recurOccurrences = new Integer[] { null };
+
+        JButton recurButton = new JButton("Dauerauftrag konfigurieren");
+        recurButton.addActionListener(ev -> {
+            JPanel rpanel = new JPanel(new GridLayout(0,2,6,6));
+            JComboBox<String> freqBox = new JComboBox<>(new String[]{"Monatlich","Jährlich"});
+            JTextField endDateField = new JTextField(10);
+            JTextField occField = new JTextField(5);
+            rpanel.add(new JLabel("Intervall:")); rpanel.add(freqBox);
+            rpanel.add(new JLabel("Enddatum (TT.MM.JJJJ) - optional:")); rpanel.add(endDateField);
+            rpanel.add(new JLabel("Anzahl Wiederholungen - optional:")); rpanel.add(occField);
+
+            int rr = JOptionPane.showConfirmDialog(this, rpanel, "Dauerauftrag", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (rr != JOptionPane.OK_OPTION) return;
+            isRecurring[0] = true;
+            recurFreq[0] = freqBox.getSelectedItem().toString().equals("Monatlich") ? "MONTHLY" : "YEARLY";
+            String ed = endDateField.getText().trim();
+            if (!ed.isEmpty()) {
+                try {
+                    recurEndDate[0] = LocalDate.parse(ed, dateFormatter);
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Ungültiges Enddatum: " + ex.getMessage(), "Fehler", JOptionPane.ERROR_MESSAGE);
+                    recurEndDate[0] = null;
+                }
+            }
+            String oc = occField.getText().trim();
+            if (!oc.isEmpty()) {
+                try { recurOccurrences[0] = Integer.parseInt(oc); } catch (NumberFormatException nfe) { recurOccurrences[0] = null; }
+            }
+        });
+
+        panel.add(new JLabel("")); panel.add(recurButton);
+
+        int result = JOptionPane.showConfirmDialog(this, panel, "Neue Transaktion", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+
+        try {
+            LocalDate parsedDate = LocalDate.parse(date.getText().trim(), dateFormatter);
+            String desc = description.getText().trim();
+            TransactionType ttype = (TransactionType) type.getSelectedItem();
+
+            BigDecimal parsedAmount;
+            try {
+                Number parsed = currencyFormat.parse(amount.getText().trim());
+                parsedAmount = BigDecimal.valueOf(parsed.doubleValue());
+            } catch (ParseException pe) {
+                String cleaned = amount.getText().replaceAll("[^0-9,.-]", "").replace(',', '.').trim();
+                parsedAmount = new BigDecimal(cleaned);
+            }
+
+            Object sel = category.getSelectedItem();
+            CategoryType cat;
+            if (sel instanceof CategoryType) {
+                cat = (CategoryType) sel;
+            } else if (sel instanceof String) {
+                String s = ((String) sel).trim();
+                CategoryType matched = null;
+                for (CategoryType ct : CategoryType.values()) {
+                    if (ct.name().equalsIgnoreCase(s)) { matched = ct; break; }
+                }
+                if (matched == null) throw new IllegalArgumentException("Unbekannte Kategorie: '" + s + "'. Bitte wähle eine bestehende Kategorie aus.");
+                cat = matched;
+            } else {
+                throw new IllegalArgumentException("Keine Kategorie ausgewählt");
+            }
+
+            // create first transaction
+            Transaction newT = new Transaction(desc, parsedAmount, ttype, parsedDate, cat);
+            transactionService.addTransaction(newT);
+            addTransactionToTable(newT);
+
+            // if recurring: generate follow-ups
+            if (isRecurring[0]) {
+                LocalDate current = parsedDate;
+                int generated = 0;
+                while (true) {
+                    // advance
+                    if (recurFreq[0].equals("MONTHLY")) current = current.plusMonths(1);
+                    else current = current.plusYears(1);
+
+                    if (recurEndDate[0] != null && current.isAfter(recurEndDate[0])) break;
+                    if (recurOccurrences[0] != null && generated >= recurOccurrences[0]) break;
+
+                    Transaction t = new Transaction(desc, parsedAmount, ttype, current, cat);
+                    transactionService.addTransaction(t);
+                    addTransactionToTable(t);
+                    generated++;
+                }
+            }
+
             updateBalance();
 
         } catch (Exception ex) {
@@ -438,15 +557,22 @@ public class TransactionsPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Transaktion konnte nicht aktualisiert werden.", "Fehler", JOptionPane.ERROR_MESSAGE);
             }
 
-            activeModel.setValueAt(updatedTransaction.getDescription(), modelRow, 0);
-            activeModel.setValueAt(currencyFormat.format(updatedTransaction.getAmount()), modelRow, 1);
-            activeModel.setValueAt(updatedTransaction.getType(), modelRow, 2);
-            activeModel.setValueAt(updatedTransaction.getDate().format(dateTimeFormatter), modelRow, 3);
-            activeModel.setValueAt(updatedTransaction.getCategory(), modelRow, 4);
-            activeModel.setValueAt(updatedTransaction, modelRow, 5);
+            // Wenn sich der Typ nicht geändert hat, aktualisiere die Zeile inplace.
+            if (updatedTransaction.getType() == oldT.getType()) {
+                activeModel.setValueAt(updatedTransaction.getDescription(), modelRow, 0);
+                activeModel.setValueAt(currencyFormat.format(updatedTransaction.getAmount()), modelRow, 1);
+                activeModel.setValueAt(updatedTransaction.getType(), modelRow, 2);
+                activeModel.setValueAt(updatedTransaction.getDate().format(dateTimeFormatter), modelRow, 3);
+                activeModel.setValueAt(updatedTransaction.getCategory(), modelRow, 4);
+                activeModel.setValueAt(updatedTransaction, modelRow, 5);
 
-            if (activeTable == incomeTable) incomeRowSorter.sort();
-            else expenseRowSorter.sort();
+                if (activeTable == incomeTable) incomeRowSorter.sort();
+                else expenseRowSorter.sort();
+            } else {
+                // Typ hat sich geändert: entferne aus altem Modell und füge in das andere ein.
+                activeModel.removeRow(modelRow);
+                addTransactionToTable(updatedTransaction);
+            }
 
             updateBalance();
         } catch (Exception ex) {
