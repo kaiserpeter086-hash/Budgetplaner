@@ -2,6 +2,7 @@ package de.euerteam.budgetplanner.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
@@ -28,13 +29,16 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.RowFilter;
+import javax.swing.UIManager;
+import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
-
+ 
 import de.euerteam.budgetplanner.model.CategoryType;
 import de.euerteam.budgetplanner.model.Transaction;
 import de.euerteam.budgetplanner.model.TransactionType;
@@ -85,9 +89,10 @@ public class TransactionsPanel extends JPanel {
     private final JFormattedTextField amountField = new JFormattedTextField(NumberFormat.getCurrencyInstance(Locale.GERMANY));
     private final JComboBox<TransactionType> typeComboBox = new JComboBox<>(TransactionType.values());
     private final JComboBox<CategoryType> categoryComboBox = new JComboBox<>(CategoryType.values());
-    
+    private JScrollPane incomeScroll;
+    private JScrollPane expenseScroll;
 
-    
+
 
     public TransactionsPanel(TransactionService transactionService) {
         this.transactionService = transactionService;
@@ -105,7 +110,7 @@ public class TransactionsPanel extends JPanel {
         // Verwende eine vertikale Anordnung: Felder oben, Button + Guthaben darunter
         JPanel formPanel = new JPanel();
         formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
-        formPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        formPanel.setBorder(BorderFactory.createEmptyBorder(16, 16, 12, 16));
 
         JPanel fieldsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         fieldsPanel.add(new JLabel("Datum:"));
@@ -164,21 +169,41 @@ public class TransactionsPanel extends JPanel {
 
         addButton.addActionListener(e -> showNewTransactionDialog());
 
+       
+
         // Initiales Guthaben anzeigen
         updateBalance();
+        
+
+        // Tabellen modern stylen
+        styleTable(incomeTable);
+        styleTable(expenseTable);
+
+        // Betrag-Spalte formatieren (rechts + farbig)
+        installAmountRenderer(incomeTable);
+        installAmountRenderer(expenseTable);
 
         // Felder für direkte Eingabe nicht mehr direkt im Hauptpanel anzeigen.
         // Stattdessen öffnet der Button ein Dialogfenster zur Eingabe.
         formPanel.add(controlsPanel);
-
+        
         // zwei Tabellen nebeneinander: Einnahmen | Ausgaben
-        JPanel tablesPanel = new JPanel(new GridLayout(1,2,8,8));
-        JScrollPane incomeScroll = new JScrollPane(incomeTable);
-        incomeScroll.setBorder(BorderFactory.createTitledBorder("Einnahmen"));
-        JScrollPane expenseScroll = new JScrollPane(expenseTable);
-        expenseScroll.setBorder(BorderFactory.createTitledBorder("Ausgaben"));
-        tablesPanel.add(incomeScroll);
-        tablesPanel.add(expenseScroll);
+        JPanel tablesPanel = new JPanel(new GridLayout(1, 2, 20, 20));
+        tablesPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        incomeScroll = new JScrollPane(incomeTable);
+        expenseScroll = new JScrollPane(expenseTable);
+
+        // ScrollPane Border entfernen (wichtig!)
+        incomeScroll.setBorder(null);
+        expenseScroll.setBorder(null);
+
+        // Cards erzeugen
+        JPanel incomeCard = createCard("Einnahmen", new Color(0, 160, 70), incomeScroll);
+        JPanel expenseCard = createCard("Ausgaben", new Color(220, 60, 60), expenseScroll);
+
+        tablesPanel.add(incomeCard);
+        tablesPanel.add(expenseCard);
 
         add(formPanel, BorderLayout.NORTH);
         add(tablesPanel, BorderLayout.CENTER);
@@ -207,6 +232,42 @@ public class TransactionsPanel extends JPanel {
 
         searchField.addActionListener(e -> incomeTable.requestFocusInWindow());
     }
+
+    private void styleTable(JTable table) {
+        table.setRowHeight(28);
+        table.setShowGrid(false);
+        table.setIntercellSpacing(new Dimension(0, 0));
+        table.setFillsViewportHeight(true);
+    table.getTableHeader().setReorderingAllowed(false);
+}
+
+private void installAmountRenderer(JTable table) {
+    DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable t, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+
+            Component c = super.getTableCellRendererComponent(t, value, isSelected, hasFocus, row, column);
+
+            if (!isSelected) {
+                Object typeObj = t.getValueAt(row, 2); // Typ-Spalte
+                if (typeObj != null && typeObj.toString().equalsIgnoreCase("Einnahmen")) {
+                    c.setForeground(new Color(0, 128, 0));
+                } else if (typeObj != null && typeObj.toString().equalsIgnoreCase("Ausgaben")) {
+                    c.setForeground(Color.RED.darker());
+                } else {
+                    c.setForeground(UIManager.getColor("Table.foreground"));
+                }
+            }
+
+            setHorizontalAlignment(RIGHT);
+            return c;
+        }
+    };
+
+    // Betrag-Spalte = 1
+    table.getColumnModel().getColumn(1).setCellRenderer(renderer);
+}
 
     private void onAddTransaction() {
         try {
@@ -736,4 +797,31 @@ public class TransactionsPanel extends JPanel {
         sorter.setSortKeys(List.of(new javax.swing.RowSorter.SortKey(3, javax.swing.SortOrder.ASCENDING)));
         sorter.setSortsOnUpdates(true);
     }
+
+private JPanel createCard(String title, Color accentColor, JScrollPane content) {
+
+    JPanel card = new JPanel(new BorderLayout());
+    card.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+    // Innenbereich (weiße / dunkle Fläche)
+    JPanel inner = new JPanel(new BorderLayout());
+    inner.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(accentColor, 3), // Farb-Akzent
+            BorderFactory.createEmptyBorder(8, 8, 8, 8)
+    ));
+
+    // Titel
+    JLabel titleLabel = new JLabel(title);
+    titleLabel.setFont(titleLabel.getFont().deriveFont(14f));
+    titleLabel.setForeground(accentColor);
+    titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
+
+    inner.add(titleLabel, BorderLayout.NORTH);
+    inner.add(content, BorderLayout.CENTER);
+
+    card.add(inner, BorderLayout.CENTER);
+    card.setBackground(UIManager.getColor("Panel.background"));
+
+    return card;
+}
 }
