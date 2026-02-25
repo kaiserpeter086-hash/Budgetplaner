@@ -23,14 +23,12 @@ import javax.swing.JFormattedTextField;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTable;
 import javax.swing.SpinnerDateModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableCellRenderer;
 
 import de.euerteam.budgetplanner.model.CategoryType;
 import de.euerteam.budgetplanner.service.TransactionService;
@@ -80,9 +78,9 @@ public class BudgetsPanel extends JPanel {
 
         budgetTable.setRowHeight(26);
         budgetTable.getColumnModel().getColumn(4).setCellRenderer(new ProgressRenderer());
-        budgetTable.getColumnModel().getColumn(1).setCellRenderer(new ProgressRenderer());
-        budgetTable.getColumnModel().getColumn(2).setCellRenderer(new ProgressRenderer());
-        budgetTable.getColumnModel().getColumn(3).setCellRenderer(new ProgressRenderer());
+        budgetTable.getColumnModel().getColumn(1).setCellRenderer(new CurrencyRenderer());
+        budgetTable.getColumnModel().getColumn(2).setCellRenderer(new CurrencyRenderer());
+        budgetTable.getColumnModel().getColumn(3).setCellRenderer(new CurrencyRenderer());
 
         add(new JScrollPane(budgetTable), BorderLayout.CENTER);
 
@@ -162,7 +160,7 @@ public class BudgetsPanel extends JPanel {
 
      private class CurrencyRenderer extends DefaultTableCellRenderer {
         public CurrencyRenderer() {
-            setHorizontalAlignment(RIGHT);
+            setHorizontalAlignment(LEFT);
         }
         @Override
         protected void setValue(Object value) {
@@ -178,7 +176,15 @@ public class BudgetsPanel extends JPanel {
         }
     }
 
-     private static class ProgressRenderer implements TableCellRenderer {
+     private static class ProgressRenderer extends DefaultTableCellRenderer{
+        private static final Color LOW_USAGWE_COLOR = new Color(46, 125, 50);
+        private static final Color MEDIUM_USAGE_COLOR = new Color(251, 192, 45);
+        private static final Color HIGH_USAGE_COLOR = new Color(198, 40, 40);
+
+        public ProgressRenderer() {
+            setHorizontalAlignment(CENTER);
+        }
+
         @Override
         public Component getTableCellRendererComponent(
                 JTable table,
@@ -187,27 +193,23 @@ public class BudgetsPanel extends JPanel {
                 boolean hasFocus,
                 int row,
                 int column) {
+            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             int percent = value instanceof Number ? ((Number) value).intValue() : 0;
 
-            JProgressBar bar = new JProgressBar(0, 100);
-            bar.setValue(Math.max(0, Math.min(100, percent)));
-            bar.setStringPainted(true);
-            bar.setString(percent + " %");
+            setText(percent + " %");
 
-            if (percent < 80) {
-                bar.setForeground(new Color(46, 125, 50));
-            } else if (percent <= 100) {
-                bar.setForeground(new Color(251, 192, 45));
-            } else {
-                bar.setForeground(new Color(198, 40, 40));
+            if (!isSelected) {
+                if (!isSelected){
+                    if (percent < 80){
+                        setForeground(LOW_USAGWE_COLOR);
+                    } else if (percent < 100) {
+                        setForeground(MEDIUM_USAGE_COLOR);
+                    } else {
+                        setForeground(HIGH_USAGE_COLOR);
+                    }
+                }
             }
-
-            if (isSelected) {
-                bar.setBackground(table.getSelectionBackground());
-            } else {
-                bar.setBackground(table.getBackground());
-            }
-            return bar;
+            return this;
         }
 
     }
