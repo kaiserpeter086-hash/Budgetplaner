@@ -9,11 +9,8 @@ import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultComboBoxModel;
@@ -30,16 +27,17 @@ import javax.swing.SpinnerDateModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 
-import de.euerteam.budgetplanner.model.CategoryType;
+import de.euerteam.budgetplanner.service.CategoryManager;
 import de.euerteam.budgetplanner.service.TransactionService;
 
 public class BudgetsPanel extends JPanel {
     private final TransactionService transactionService;
+    private final CategoryManager categoryManager;
     private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
     private DateTimeFormatter monthFormatter = DateTimeFormatter.ofPattern("MM.yyyy");
 
     private final JSpinner monthSpinner = new JSpinner(new SpinnerDateModel());
-    private final JComboBox<CategoryType> categoryComboBox = new JComboBox<>();
+    private final JComboBox<String> categoryComboBox = new JComboBox<>();
     private final JFormattedTextField budgetAmountField = new JFormattedTextField(currencyFormat);
 
     private final DefaultTableModel tableModel = new DefaultTableModel(
@@ -53,13 +51,17 @@ public class BudgetsPanel extends JPanel {
 
     private final JTable budgetTable = new JTable(tableModel);
     
-    public BudgetsPanel(TransactionService transactionService){
+    public BudgetsPanel(TransactionService transactionService, CategoryManager categoryManager){
         this.transactionService = transactionService;
+        this.categoryManager = categoryManager;
         setLayout(new BorderLayout(8, 8));
         setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
 
         monthSpinner.setEditor(new JSpinner.DateEditor(monthSpinner, "MM.yyyy"));
-        categoryComboBox.setModel(new DefaultComboBoxModel<>(getBudgetCategories().toArray(new CategoryType[0])));
+        categoryComboBox.setModel(new DefaultComboBoxModel<>(categoryManager.getCategories().toArray(new String[0])));
+        categoryManager.addListener(() -> {
+            categoryComboBox.setModel(new DefaultComboBoxModel<>(categoryManager.getCategories().toArray(new String[0])));
+        });
 
         JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEFT));
         controls.add(new JLabel("Monat:"));
@@ -93,11 +95,11 @@ public class BudgetsPanel extends JPanel {
 
     public void refreshData(){
        YearMonth month = getSelectedMonth();
-        Map<CategoryType, BigDecimal> budgets = transactionService.getBudgetsForMonth(month);
-        Map<CategoryType, BigDecimal> expenses = transactionService.getExpensesCategoryForMonth(month);
+        Map<String, BigDecimal> budgets = transactionService.getBudgetsForMonth(month);
+        Map<String, BigDecimal> expenses = transactionService.getExpensesCategoryForMonth(month);
 
         tableModel.setRowCount(0);
-        for (CategoryType category : getBudgetCategories()) {
+        for (String category : categoryManager.getCategories()) {
             
             BigDecimal budget = budgets.getOrDefault(category, BigDecimal.ZERO);
             BigDecimal expense = expenses.getOrDefault(category, BigDecimal.ZERO);
@@ -117,18 +119,10 @@ public class BudgetsPanel extends JPanel {
         }
     }
 
-    private List<CategoryType> getBudgetCategories(){
-        return Arrays.stream(CategoryType.values())
-                .filter(c -> c != CategoryType.Auswahl)
-                .filter(c -> !c.name().equalsIgnoreCase("FORMAT"))
-                .filter(c -> !c.name().equalsIgnoreCase("DISPLAY"))
-                .collect(Collectors.toList());
-    }
-
     private void saveBudget() {
         try {
-            CategoryType category = (CategoryType) categoryComboBox.getSelectedItem();
-            if (category == null || category == CategoryType.Auswahl) {
+            String category = (String) categoryComboBox.getSelectedItem();
+            if (category == null || category.isBlank()) {
                 throw new IllegalArgumentException("Bitte eine gültige Kategorie wählen.");
             }
 

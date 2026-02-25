@@ -1,25 +1,26 @@
 package de.euerteam.budgetplanner.ui;
 
-import javax.swing.JFrame;
-import javax.swing.JTabbedPane;
-import javax.swing.JButton;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
-
 import java.awt.BorderLayout;
-import java.awt.FlowLayout;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Point;
+
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+import javax.swing.JTabbedPane;
+import javax.swing.SwingUtilities;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 
+import de.euerteam.budgetplanner.service.CategoryManager;
 import de.euerteam.budgetplanner.service.TransactionService;
 
 public class MainFrame extends JFrame {
 
     private boolean darkMode = false;
-    private JButton themeButton;
+    private final JButton themeButton;
 
     public MainFrame() {
         super("BudgetPlanner");
@@ -28,12 +29,13 @@ public class MainFrame extends JFrame {
         setLocationRelativeTo(null);
 
         TransactionService transactionService = new TransactionService();
+        CategoryManager categoryManager = new CategoryManager();
 
         JTabbedPane tabs = new JTabbedPane();
 
-        TransactionsPanel transactionsPanel = new TransactionsPanel(transactionService);
+        TransactionsPanel transactionsPanel = new TransactionsPanel(transactionService, categoryManager);
         StatisticPanel statisticPanel = new StatisticPanel(transactionService);
-        BudgetsPanel budgetsPanel = new BudgetsPanel(transactionService);
+        BudgetsPanel budgetsPanel = new BudgetsPanel(transactionService, categoryManager);
 
         tabs.addTab("Buchungen", transactionsPanel);
         tabs.addTab("Statistiken", statisticPanel);

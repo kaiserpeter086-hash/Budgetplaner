@@ -6,6 +6,8 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.text.ParseException;
@@ -15,34 +17,42 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.List;
 
+import javax.accessibility.Accessible;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFormattedTextField;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.ListCellRenderer;
 import javax.swing.RowFilter;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
-import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.plaf.basic.BasicComboPopup;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
  
-import de.euerteam.budgetplanner.model.CategoryType;
 import de.euerteam.budgetplanner.model.Transaction;
 import de.euerteam.budgetplanner.model.TransactionType;
 import de.euerteam.budgetplanner.persistence.CsvPersistence;
+import de.euerteam.budgetplanner.service.CategoryManager;
 import de.euerteam.budgetplanner.service.TransactionService;
 
 public class TransactionsPanel extends JPanel {
@@ -88,14 +98,16 @@ public class TransactionsPanel extends JPanel {
     private final JTextField descriptionField = new JTextField(15);
     private final JFormattedTextField amountField = new JFormattedTextField(NumberFormat.getCurrencyInstance(Locale.GERMANY));
     private final JComboBox<TransactionType> typeComboBox = new JComboBox<>(TransactionType.values());
-    private final JComboBox<CategoryType> categoryComboBox = new JComboBox<>(CategoryType.values());
+    private final JComboBox<String> categoryComboBox = new JComboBox<>();
+    private final CategoryManager categoryManager;
     private JScrollPane incomeScroll;
     private JScrollPane expenseScroll;
 
 
 
-    public TransactionsPanel(TransactionService transactionService) {
+    public TransactionsPanel(TransactionService transactionService, CategoryManager categoryManager) {
         this.transactionService = transactionService;
+        this.categoryManager = categoryManager;
         setLayout(new BorderLayout());
 
         // Deutsches Datumsformat: TT.MM.JJJJ
@@ -126,12 +138,17 @@ public class TransactionsPanel extends JPanel {
         fieldsPanel.add(typeComboBox);
 
     fieldsPanel.add(new JLabel("Kategorie:"));
-    // Ermögliche Tippen und wähle Größe
-    categoryComboBox.setEditable(true);
     categoryComboBox.setPreferredSize(new Dimension(150, 25));
-    categoryComboBox.setToolTipText("Kategorie auswählen oder neuen Namen tippen");
+    categoryComboBox.setToolTipText("Kategorie auswählen");
     categoryComboBox.setMaximumRowCount(12);
     fieldsPanel.add(categoryComboBox);
+    // Kategorien aus CategoryManager laden und bei Änderungen aktualisieren
+    Runnable refreshMainCombo = () -> {
+        categoryComboBox.removeAllItems();
+        for (String c : categoryManager.getCategories()) categoryComboBox.addItem(c);
+    };
+    refreshMainCombo.run();
+    categoryManager.addListener(refreshMainCombo);
 
         JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton addButton = new JButton("Neue Transaktion");
@@ -238,8 +255,18 @@ public class TransactionsPanel extends JPanel {
         table.setShowGrid(false);
         table.setIntercellSpacing(new Dimension(0, 0));
         table.setFillsViewportHeight(true);
-    table.getTableHeader().setReorderingAllowed(false);
-}
+        table.getTableHeader().setReorderingAllowed(false);
+
+        // Alle Zellen mittig ausrichten
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        for (int i = 0; i < table.getColumnCount(); i++) {
+            table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+        }
+        // Header ebenfalls mittig
+        ((DefaultTableCellRenderer) table.getTableHeader().getDefaultRenderer())
+                .setHorizontalAlignment(SwingConstants.CENTER);
+    }
 
 private void installAmountRenderer(JTable table) {
     DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
@@ -260,7 +287,7 @@ private void installAmountRenderer(JTable table) {
                 }
             }
 
-            setHorizontalAlignment(RIGHT);
+            setHorizontalAlignment(CENTER);
             return c;
         }
     };
@@ -268,75 +295,6 @@ private void installAmountRenderer(JTable table) {
     // Betrag-Spalte = 1
     table.getColumnModel().getColumn(1).setCellRenderer(renderer);
 }
-
-    private void onAddTransaction() {
-        try {
-            DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(Locale.GERMANY);
-            LocalDate date = LocalDate.parse(dateField.getText().trim(), dateFormatter);
-            TransactionType type = (TransactionType) typeComboBox.getSelectedItem();
-            String description = descriptionField.getText().trim();
-            // Versuche, den formatierten Betrag zu parsen (z.B. "1.234,56 €")
-            NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
-            BigDecimal amount;
-            try {
-                Number parsed = currencyFormat.parse(amountField.getText().trim());
-                amount = BigDecimal.valueOf(parsed.doubleValue());
-            } catch (ParseException pe) {
-                // Fallback: direkte BigDecimal-Parsung (ohne Währungszeichen)
-                String cleaned = amountField.getText().replaceAll("[^0-9,.-]", "").replace(',', '.').trim();
-                amount = new BigDecimal(cleaned);
-            }
-            Object sel = categoryComboBox.getSelectedItem();
-            CategoryType category;
-            if (sel instanceof CategoryType) {
-                category = (CategoryType) sel;
-            } else if (sel instanceof String) {
-                String s = ((String) sel).trim();
-                CategoryType matched = null;
-                for (CategoryType ct : CategoryType.values()) {
-                    if (ct.name().equalsIgnoreCase(s)) {
-                        matched = ct;
-                        break;
-                    }
-                }
-                if (matched == null) {
-                    throw new IllegalArgumentException("Unbekannte Kategorie: '" + s + "'. Bitte wähle eine bestehende Kategorie aus.");
-                }
-                category = matched;
-            } else {
-                throw new IllegalArgumentException("Keine Kategorie ausgewählt");
-            }
-
-            Transaction t = new Transaction(description, amount, type, date, category);
-
-            if (type == TransactionType.Ausgaben && category != CategoryType.Auswahl){
-                YearMonth month = YearMonth.from(date);
-                BigDecimal budget = transactionService.getBudgetForMonth(month, category);
-                BigDecimal currentExpenses = transactionService
-                        .getExpensesCategoryForMonth(month)
-                        .getOrDefault(category, BigDecimal.ZERO);
-                BigDecimal newExpenseTotal = currentExpenses.add(amount);
-
-                if (budget.compareTo(BigDecimal.ZERO) > 0  && newExpenseTotal.compareTo(budget) > 0){
-                    NumberFormat warningFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
-                    JOptionPane.showMessageDialog(
-                        this,
-                        "Achtung: Budget für " + category + " in " + month + " überschritten!\n"
-                        + "Budget: " + warningFormat.format(budget) + " | Neu: " + warningFormat.format(newExpenseTotal),
-                        "Budgetwarnung",
-                        JOptionPane.WARNING_MESSAGE);
-                }
-            }
-
-            // Persist the transaction in the service so balance calculations work
-            transactionService.addTransaction(t);
-            addTransactionToTable(t);
-            updateBalance();
-
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Ungültige Eingabe: " + ex.getMessage(), "Fehler", JOptionPane.ERROR_MESSAGE);
-        }
-    }
 
     private void showNewTransactionDialog() {
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(Locale.GERMANY);
@@ -346,15 +304,35 @@ private void installAmountRenderer(JTable table) {
         JFormattedTextField amount = new JFormattedTextField(currencyFormat);
         amount.setValue(0.00);
         JComboBox<TransactionType> type = new JComboBox<>(TransactionType.values());
-        JComboBox<CategoryType> category = new JComboBox<>(CategoryType.values());
-        category.setEditable(true);
+
+        // Kategorie-ComboBox mit dynamischen Kategorien
+        JComboBox<String> category = new JComboBox<>(categoryManager.getCategories().toArray(new String[0]));
+        installCategoryDeleteRenderer(category);
+
+        // "+" Button zum Hinzufügen neuer Kategorien
+        JButton addCatBtn = new JButton("+");
+        addCatBtn.setPreferredSize(new Dimension(45, 25));
+        addCatBtn.setToolTipText("Neue Kategorie hinzufügen");
+        addCatBtn.addActionListener(ev -> {
+            String name = JOptionPane.showInputDialog(this, "Name der neuen Kategorie:", "Kategorie hinzufügen", JOptionPane.PLAIN_MESSAGE);
+            if (name != null && !name.isBlank()) {
+                categoryManager.addCategory(name.trim());
+                category.removeAllItems();
+                for (String c : categoryManager.getCategories()) category.addItem(c);
+                category.setSelectedItem(name.trim());
+            }
+        });
+
+        JPanel catPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+        catPanel.add(category);
+        catPanel.add(addCatBtn);
 
         JPanel panel = new JPanel(new GridLayout(0, 2, 8, 8));
         panel.add(new JLabel("Datum:")); panel.add(date);
         panel.add(new JLabel("Beschreibung:")); panel.add(description);
         panel.add(new JLabel("Betrag:")); panel.add(amount);
         panel.add(new JLabel("Typ:")); panel.add(type);
-        panel.add(new JLabel("Kategorie:")); panel.add(category);
+        panel.add(new JLabel("Kategorie:")); panel.add(catPanel);
 
         // recurrence holder
         final boolean[] isRecurring = new boolean[] { false };
@@ -411,17 +389,9 @@ private void installAmountRenderer(JTable table) {
             }
 
             Object sel = category.getSelectedItem();
-            CategoryType cat;
-            if (sel instanceof CategoryType) {
-                cat = (CategoryType) sel;
-            } else if (sel instanceof String) {
-                String s = ((String) sel).trim();
-                CategoryType matched = null;
-                for (CategoryType ct : CategoryType.values()) {
-                    if (ct.name().equalsIgnoreCase(s)) { matched = ct; break; }
-                }
-                if (matched == null) throw new IllegalArgumentException("Unbekannte Kategorie: '" + s + "'. Bitte wähle eine bestehende Kategorie aus.");
-                cat = matched;
+            String cat;
+            if (sel instanceof String s && !s.isBlank()) {
+                cat = s.trim();
             } else {
                 throw new IllegalArgumentException("Keine Kategorie ausgewählt");
             }
@@ -430,6 +400,23 @@ private void installAmountRenderer(JTable table) {
             Transaction newT = new Transaction(desc, parsedAmount, ttype, parsedDate, cat);
             transactionService.addTransaction(newT);
             addTransactionToTable(newT);
+
+            // Budget-Warnung
+            if (ttype == TransactionType.Ausgaben && !cat.isBlank()){
+                YearMonth month = YearMonth.from(parsedDate);
+                BigDecimal budget = transactionService.getBudgetForMonth(month, cat);
+                BigDecimal currentExpenses = transactionService
+                        .getExpensesCategoryForMonth(month)
+                        .getOrDefault(cat, BigDecimal.ZERO);
+                BigDecimal newExpenseTotal = currentExpenses.add(parsedAmount);
+                if (budget.compareTo(BigDecimal.ZERO) > 0 && newExpenseTotal.compareTo(budget) > 0){
+                    NumberFormat warningFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
+                    JOptionPane.showMessageDialog(this,
+                        "Achtung: Budget für " + cat + " in " + month + " überschritten!\n"
+                        + "Budget: " + warningFormat.format(budget) + " | Neu: " + warningFormat.format(newExpenseTotal),
+                        "Budgetwarnung", JOptionPane.WARNING_MESSAGE);
+                }
+            }
 
             // if recurring: generate follow-ups
             if (isRecurring[0]) {
@@ -506,7 +493,11 @@ private void installAmountRenderer(JTable table) {
         }
 
         int modelRow = activeTable.convertRowIndexToModel(viewRow);
-        Transaction t = (Transaction) activeModel.getValueAt(modelRow, 5);
+        Object obj = activeModel.getValueAt(modelRow, 5);
+        if (!(obj instanceof Transaction t)) {
+            JOptionPane.showMessageDialog(this, "Transaktionsdaten konnten nicht gelesen werden.", "Fehler", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
         NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
         DateTimeFormatter dateTimeFormatter = TABLE_DATE_FORMATTER;
@@ -547,7 +538,11 @@ private void installAmountRenderer(JTable table) {
         }
 
         int modelRow = activeTable.convertRowIndexToModel(viewRow);
-        Transaction oldT = (Transaction) activeModel.getValueAt(modelRow, 5);
+        Object obj = activeModel.getValueAt(modelRow, 5);
+        if (!(obj instanceof Transaction oldT)) {
+            JOptionPane.showMessageDialog(this, "Transaktionsdaten konnten nicht gelesen werden.", "Fehler", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
         DateTimeFormatter dateTimeFormatter = TABLE_DATE_FORMATTER;
         NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
@@ -558,9 +553,27 @@ private void installAmountRenderer(JTable table) {
         amount.setValue(oldT.getAmount());
         JComboBox<TransactionType> type = new JComboBox<>(TransactionType.values());
         type.setSelectedItem(oldT.getType());
-        JComboBox<CategoryType> category = new JComboBox<>(CategoryType.values());
-        category.setEditable(true);
+        JComboBox<String> category = new JComboBox<>(categoryManager.getCategories().toArray(new String[0]));
+        installCategoryDeleteRenderer(category);
         category.setSelectedItem(oldT.getCategory());
+
+        // "+" Button zum Hinzufügen neuer Kategorien
+        JButton addCatBtn = new JButton("+");
+        addCatBtn.setPreferredSize(new Dimension(45, 25));
+        addCatBtn.setToolTipText("Neue Kategorie hinzufügen");
+        addCatBtn.addActionListener(ev -> {
+            String name = JOptionPane.showInputDialog(this, "Name der neuen Kategorie:", "Kategorie hinzufügen", JOptionPane.PLAIN_MESSAGE);
+            if (name != null && !name.isBlank()) {
+                categoryManager.addCategory(name.trim());
+                category.removeAllItems();
+                for (String c : categoryManager.getCategories()) category.addItem(c);
+                category.setSelectedItem(name.trim());
+            }
+        });
+
+        JPanel catPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+        catPanel.add(category);
+        catPanel.add(addCatBtn);
 
         JPanel panel = new JPanel(new GridLayout(0, 2, 8, 8));
         panel.add(new JLabel("Datum:"));
@@ -572,7 +585,7 @@ private void installAmountRenderer(JTable table) {
         panel.add(new JLabel("Typ:"));
         panel.add(type);
         panel.add(new JLabel("Kategorie:"));
-        panel.add(category);
+        panel.add(catPanel);
 
         int result = JOptionPane.showConfirmDialog(this, panel, "Transaktion bearbeiten", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result != JOptionPane.OK_OPTION) return;
@@ -592,22 +605,9 @@ private void installAmountRenderer(JTable table) {
             }
 
             Object sel = category.getSelectedItem();
-            CategoryType newCategory;
-            if (sel instanceof CategoryType) {
-                newCategory = (CategoryType) sel;
-            } else if (sel instanceof String) {
-                String s = ((String) sel).trim();
-                CategoryType matched = null;
-                for (CategoryType ct : CategoryType.values()) {
-                    if (ct.name().equalsIgnoreCase(s)) {
-                        matched = ct;
-                        break;
-                    }
-                }
-                if (matched == null) {
-                    throw new IllegalArgumentException("Unbekannte Kategorie: '" + s + "'. Bitte wähle eine bestehende Kategorie aus.");
-                }
-                newCategory = matched;
+            String newCategory;
+            if (sel instanceof String s && !s.isBlank()) {
+                newCategory = s.trim();
             } else {
                 throw new IllegalArgumentException("Keine Kategorie ausgewählt");
             }
@@ -796,6 +796,102 @@ private void installAmountRenderer(JTable table) {
         });
         sorter.setSortKeys(List.of(new javax.swing.RowSorter.SortKey(3, javax.swing.SortOrder.ASCENDING)));
         sorter.setSortsOnUpdates(true);
+    }
+
+    /**
+     * Installiert einen Renderer mit "✕" neben jeder Kategorie im Dropdown und
+     * einen MouseListener der bei Klick auf "✕" eine Bestätigungsabfrage zeigt und die Kategorie löscht.
+     */
+    private void installCategoryDeleteRenderer(JComboBox<String> comboBox) {
+        final int X_BUTTON_WIDTH = 24;
+
+        comboBox.setRenderer(new ListCellRenderer<String>() {
+            private final DefaultListCellRenderer defaultRenderer = new DefaultListCellRenderer();
+
+            @Override
+            public Component getListCellRendererComponent(JList<? extends String> list,
+                    String value, int index, boolean isSelected, boolean cellHasFocus) {
+                // index == -1 → geschlossenes ComboBox-Feld: nur Text
+                if (index == -1) {
+                    return defaultRenderer.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                }
+
+                JPanel panel = new JPanel(new BorderLayout());
+                panel.setOpaque(true);
+                panel.setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
+
+                JLabel nameLabel = new JLabel(value != null ? value : "");
+                nameLabel.setForeground(isSelected ? list.getSelectionForeground() : list.getForeground());
+                nameLabel.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 0));
+                panel.add(nameLabel, BorderLayout.CENTER);
+
+                JLabel xLabel = new JLabel("\u2715", SwingConstants.CENTER);
+                xLabel.setPreferredSize(new Dimension(X_BUTTON_WIDTH, 16));
+                xLabel.setForeground(isSelected ? new Color(255, 120, 120) : new Color(180, 80, 80));
+                xLabel.setFont(xLabel.getFont().deriveFont(12f));
+                xLabel.setToolTipText("Kategorie löschen");
+                panel.add(xLabel, BorderLayout.EAST);
+
+                return panel;
+            }
+        });
+
+        comboBox.addPopupMenuListener(new PopupMenuListener() {
+            private MouseAdapter popupMouseListener;
+
+            @Override
+            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+                SwingUtilities.invokeLater(() -> {
+                    Accessible a = comboBox.getAccessibleContext().getAccessibleChild(0);
+                    if (a instanceof BasicComboPopup popup) {
+                        JList<?> popupList = popup.getList();
+
+                        if (popupMouseListener != null) {
+                            popupList.removeMouseListener(popupMouseListener);
+                        }
+
+                        popupMouseListener = new MouseAdapter() {
+                            @Override
+                            public void mousePressed(MouseEvent me) {
+                                int idx = popupList.locationToIndex(me.getPoint());
+                                if (idx < 0) return;
+
+                                java.awt.Rectangle cellBounds = popupList.getCellBounds(idx, idx);
+                                if (cellBounds == null) return;
+
+                                int xStart = cellBounds.x + cellBounds.width - X_BUTTON_WIDTH;
+                                if (me.getX() >= xStart) {
+                                    me.consume();
+                                    Object elem = popupList.getModel().getElementAt(idx);
+                                    String catName = elem != null ? elem.toString() : "";
+
+                                    comboBox.hidePopup();
+
+                                    int confirm = JOptionPane.showConfirmDialog(
+                                            TransactionsPanel.this,
+                                            "Möchten Sie die Kategorie \"" + catName + "\" wirklich löschen?",
+                                            "Kategorie löschen",
+                                            JOptionPane.YES_NO_OPTION,
+                                            JOptionPane.WARNING_MESSAGE);
+                                    if (confirm == JOptionPane.YES_OPTION) {
+                                        categoryManager.removeCategory(catName);
+                                        comboBox.removeAllItems();
+                                        for (String c : categoryManager.getCategories()) comboBox.addItem(c);
+                                    }
+                                }
+                            }
+                        };
+                        popupList.addMouseListener(popupMouseListener);
+                    }
+                });
+            }
+
+            @Override
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) { }
+
+            @Override
+            public void popupMenuCanceled(PopupMenuEvent e) { }
+        });
     }
 
 private JPanel createCard(String title, Color accentColor, JScrollPane content) {

@@ -5,14 +5,14 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public class Transaction {
-    private UUID id;
-    private String description;
-    private BigDecimal amount;
-    private TransactionType type;
-    private LocalDate date;
-    private CategoryType category;
+    private final UUID id;
+    private final String description;
+    private final BigDecimal amount;
+    private final TransactionType type;
+    private final LocalDate date;
+    private final String category;
 
-    public Transaction(String description, BigDecimal amount, TransactionType type, LocalDate date, CategoryType category) {
+    public Transaction(String description, BigDecimal amount, TransactionType type, LocalDate date, String category) {
         this.id = UUID.randomUUID();
         this.description = description;
         this.amount = amount;
@@ -21,7 +21,7 @@ public class Transaction {
         this.category = category;
     }
 
-    public Transaction(UUID id, String description, BigDecimal amount, TransactionType type, LocalDate date, CategoryType category) {
+    public Transaction(UUID id, String description, BigDecimal amount, TransactionType type, LocalDate date, String category) {
         this.id = id;
         this.description = description;
         this.amount = amount;
@@ -50,7 +50,7 @@ public class Transaction {
         return date;
     }
 
-    public CategoryType getCategory() {
+    public String getCategory() {
         return category;
     }
 }

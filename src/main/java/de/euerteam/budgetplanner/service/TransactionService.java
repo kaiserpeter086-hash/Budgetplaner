@@ -3,18 +3,16 @@ package de.euerteam.budgetplanner.service;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.ArrayList;
-import java.util.List;
-import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import de.euerteam.budgetplanner.model.CategoryType;
 import de.euerteam.budgetplanner.model.Transaction;
 import de.euerteam.budgetplanner.model.TransactionType;
 
 public class TransactionService {
     private final List<Transaction> transactions = new ArrayList<>();
-    private final Map<YearMonth, Map<CategoryType, BigDecimal>> monthlyBudgets = new HashMap<>();
+    private final Map<YearMonth, Map<String, BigDecimal>> monthlyBudgets = new HashMap<>();
 
     public void addTransaction(Transaction transaction) {
         transactions.add(transaction);
@@ -38,12 +36,12 @@ public class TransactionService {
         return balance; 
     }
 
-    public Map<CategoryType, BigDecimal> getExpensesCategoryForMonth(YearMonth month){
-        Map<CategoryType, BigDecimal> expensesByCategory = new EnumMap<>(CategoryType.class);
+    public Map<String, BigDecimal> getExpensesCategoryForMonth(YearMonth month){
+        Map<String, BigDecimal> expensesByCategory = new HashMap<>();
         for (Transaction t : transactions) {
             if(t.getType() != TransactionType.Ausgaben) continue;
             if (!YearMonth.from(t.getDate()).equals(month)) continue;
-            if (t.getCategory() == null || t.getCategory() == CategoryType.Auswahl) continue;
+            if (t.getCategory() == null || t.getCategory().isBlank()) continue;
 
             BigDecimal current = expensesByCategory.getOrDefault(t.getCategory(), BigDecimal.ZERO);
             expensesByCategory.put(t.getCategory(), current.add(t.getAmount()));
@@ -51,17 +49,17 @@ public class TransactionService {
         return expensesByCategory;
     }
 
-    public void setMonthlyBudget(YearMonth month, CategoryType category, BigDecimal budget) {
-        if (month == null || category == null || category == CategoryType.Auswahl) {
+    public void setMonthlyBudget(YearMonth month, String category, BigDecimal budget) {
+        if (month == null || category == null || category.isBlank()) {
             return;
         }
-        Map<CategoryType, BigDecimal> monthBudgets = monthlyBudgets.computeIfAbsent(month, m -> new EnumMap<>(CategoryType.class));
+        Map<String, BigDecimal> monthBudgets = monthlyBudgets.computeIfAbsent(month, m -> new HashMap<>());
         BigDecimal normalized = budget == null ? BigDecimal.ZERO : budget.max(BigDecimal.ZERO);
         monthBudgets.put(category, normalized);
     }
 
-    public BigDecimal getBudgetForMonth(YearMonth month, CategoryType category) {
-        if (month == null || category == null || category == CategoryType.Auswahl) {
+    public BigDecimal getBudgetForMonth(YearMonth month, String category) {
+        if (month == null || category == null || category.isBlank()) {
             return BigDecimal.ZERO;
         }
         return monthlyBudgets
@@ -69,8 +67,8 @@ public class TransactionService {
                 .getOrDefault(category, BigDecimal.ZERO);
     }
 
-    public Map<CategoryType, BigDecimal> getBudgetsForMonth(YearMonth month){
-        Map<CategoryType, BigDecimal> budgets = new EnumMap<>(CategoryType.class);
+    public Map<String, BigDecimal> getBudgetsForMonth(YearMonth month){
+        Map<String, BigDecimal> budgets = new HashMap<>();
         budgets.putAll(monthlyBudgets.getOrDefault(month, Map.of()));
         return budgets;
     }
@@ -90,9 +88,9 @@ public class TransactionService {
         return false;
     }
 
-    public List<Transaction> filterByCategory(CategoryType category) {
+    public List<Transaction> filterByCategory(String category) {
         return transactions.stream()
-                .filter(t -> t.getCategory() == category)
+                .filter(t -> category.equals(t.getCategory()))
                 .toList();
     }
 

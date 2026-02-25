@@ -15,12 +15,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import de.euerteam.budgetplanner.model.CategoryType;
 import de.euerteam.budgetplanner.model.Transaction;
 import de.euerteam.budgetplanner.model.TransactionType;
 
 public class CsvPersistence {
-    private static final String DELIMITER = ";";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
     
     // CSV Header
@@ -113,7 +111,7 @@ public class CsvPersistence {
         BigDecimal amount = new BigDecimal(parts[2].trim());
         TransactionType type = TransactionType.valueOf(parts[3].trim());
         LocalDate date = LocalDate.parse(parts[4].trim(), DATE_FORMATTER);
-        CategoryType category = CategoryType.valueOf(parts[5].trim());
+        String category = parts[5].trim();
         
         return new Transaction(id, description, amount, type, date, category);
     }

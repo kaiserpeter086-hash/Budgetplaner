@@ -24,15 +24,15 @@ import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.CategoryPlot;
+import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.category.BarRenderer;
 import org.jfree.chart.renderer.category.StandardBarPainter;
+import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.general.DefaultPieDataset;
 import org.jfree.data.time.Day;
 import org.jfree.data.time.TimeSeries;
 import org.jfree.data.time.TimeSeriesCollection;
-import org.jfree.chart.plot.XYPlot;
-import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 
 import de.euerteam.budgetplanner.model.Transaction;
 import de.euerteam.budgetplanner.model.TransactionType;
@@ -89,7 +89,7 @@ public class StatisticPanel extends JPanel {
         Map<String, BigDecimal> expensesByCategory = transactions.stream()
             .filter(t -> t != null && t.getType() == TransactionType.Ausgaben)
             .collect(Collectors.groupingBy(
-                t -> t.getCategory() != null ? t.getCategory().name() : "Unbekannt",
+                t -> t.getCategory() != null ? t.getCategory() : "Unbekannt",
                 Collectors.reducing(BigDecimal.ZERO, Transaction::getAmount, BigDecimal::add)
             ));
         if (expensesByCategory.isEmpty()) {
@@ -122,12 +122,12 @@ public class StatisticPanel extends JPanel {
     }
 
     private JComponent createPieChart(List<Transaction> transactions) {
-        DefaultPieDataset dataset = new DefaultPieDataset();
+        DefaultPieDataset<String> dataset = new DefaultPieDataset<>();
 
         Map<String, BigDecimal> expensesByCategory = transactions.stream()
                 .filter(t -> t != null && t.getType() == TransactionType.Ausgaben)
                 .collect(Collectors.groupingBy(
-                        t -> (t.getCategory() != null ? t.getCategory().name() : "UNBEKANNT"),
+                        t -> (t.getCategory() != null ? t.getCategory() : "Unbekannt"),
                         Collectors.reducing(BigDecimal.ZERO, Transaction::getAmount, BigDecimal::add)
                 ));
 
