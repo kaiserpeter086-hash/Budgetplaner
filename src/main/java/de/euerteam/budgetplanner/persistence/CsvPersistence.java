@@ -92,7 +92,7 @@ public class CsvPersistence {
                 transaction.getAmount(),
                 transaction.getType(),
                 transaction.getDate().format(DATE_FORMATTER),
-                transaction.getCategory()
+                escapeCSVField(transaction.getCategory())
         );
     }
 

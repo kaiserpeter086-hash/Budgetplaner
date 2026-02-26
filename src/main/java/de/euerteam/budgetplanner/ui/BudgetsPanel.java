@@ -193,14 +193,12 @@ public class BudgetsPanel extends JPanel {
             setText(percent + " %");
 
             if (!isSelected) {
-                if (!isSelected){
-                    if (percent < 80){
-                        setForeground(LOW_USAGWE_COLOR);
-                    } else if (percent < 100) {
-                        setForeground(MEDIUM_USAGE_COLOR);
-                    } else {
-                        setForeground(HIGH_USAGE_COLOR);
-                    }
+                if (percent < 80){
+                    setForeground(LOW_USAGWE_COLOR);
+                } else if (percent < 100) {
+                    setForeground(MEDIUM_USAGE_COLOR);
+                } else {
+                    setForeground(HIGH_USAGE_COLOR);
                 }
             }
             return this;

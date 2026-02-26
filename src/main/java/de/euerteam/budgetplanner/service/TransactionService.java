@@ -3,6 +3,7 @@ package de.euerteam.budgetplanner.service;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +20,7 @@ public class TransactionService {
     }
 
     public List<Transaction> getTransactions() {
-        return transactions;
+        return Collections.unmodifiableList(transactions);
     }
 
     public BigDecimal getMonthlyBalance(YearMonth month) {

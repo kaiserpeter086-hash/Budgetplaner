@@ -188,6 +188,18 @@ public class TransactionsPanel extends JPanel {
         installAmountRenderer(incomeTable);
         installAmountRenderer(expenseTable);
 
+        // Bei Klick in eine Tabelle die Selektion der anderen aufheben
+        incomeTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && incomeTable.getSelectedRow() >= 0) {
+                expenseTable.clearSelection();
+            }
+        });
+        expenseTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && expenseTable.getSelectedRow() >= 0) {
+                incomeTable.clearSelection();
+            }
+        });
+
         formPanel.add(controlsPanel);
         
         JPanel tablesPanel = new JPanel(new GridLayout(1, 2, 20, 20));
@@ -378,10 +390,10 @@ private void installAmountRenderer(JTable table) {
             if (ttype == TransactionType.Ausgaben && !cat.isBlank()){
                 YearMonth month = YearMonth.from(parsedDate);
                 BigDecimal budget = transactionService.getBudgetForMonth(month, cat);
-                BigDecimal currentExpenses = transactionService
+                // Transaktion wurde bereits hinzugefügt, daher enthält getExpensesCategoryForMonth den neuen Betrag schon
+                BigDecimal newExpenseTotal = transactionService
                         .getExpensesCategoryForMonth(month)
                         .getOrDefault(cat, BigDecimal.ZERO);
-                BigDecimal newExpenseTotal = currentExpenses.add(parsedAmount);
                 if (budget.compareTo(BigDecimal.ZERO) > 0 && newExpenseTotal.compareTo(budget) > 0){
                     NumberFormat warningFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
                     JOptionPane.showMessageDialog(this,
@@ -392,9 +404,11 @@ private void installAmountRenderer(JTable table) {
             }
 
             if (isRecurring[0]) {
+                // Sicherheitslimit: ohne Enddatum und ohne Wiederholungen max 120 Buchungen
+                int maxRecurring = (recurEndDate[0] == null && recurOccurrences[0] == null) ? 120 : Integer.MAX_VALUE;
                 LocalDate current = parsedDate;
                 int generated = 0;
-                while (true) {
+                while (generated < maxRecurring) {
                     if (recurFreq[0].equals("MONTHLY")) current = current.plusMonths(1);
                     else current = current.plusYears(1);
 
@@ -613,6 +627,7 @@ private void installAmountRenderer(JTable table) {
         if (text == null || text.trim().isEmpty()) {
             incomeRowSorter.setRowFilter(null);
             expenseRowSorter.setRowFilter(null);
+            updateBalance();
             return;
         }
         
@@ -660,7 +675,7 @@ private void installAmountRenderer(JTable table) {
                 }
             }
         }
-        balanceLabel.setText("Monatliches Guthaben: " + currencyFormat.format(balance));
+        balanceLabel.setText("Guthaben (Suchergebnis): " + currencyFormat.format(balance));
         updateBalanceColor(balance);
     }
 
@@ -670,7 +685,7 @@ private void installAmountRenderer(JTable table) {
         } else if (balance.compareTo(BigDecimal.ZERO) < 0) {
             balanceLabel.setForeground(Color.RED);
         } else {
-            balanceLabel.setForeground(Color.BLACK);
+            balanceLabel.setForeground(UIManager.getColor("Label.foreground"));
         }
     }
 
