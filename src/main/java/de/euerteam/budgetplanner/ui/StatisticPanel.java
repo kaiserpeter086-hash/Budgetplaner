@@ -155,10 +155,6 @@ public class StatisticPanel extends JPanel {
 
         return wrapChart(chart);
     }
-
-    // ----------------------------
-    // Liniendiagramm: Kontoverlauf (Saldo über Zeit)
-    // ----------------------------
     private JComponent createLineChart(List<Transaction> transactions) {
         List<Transaction> sorted = transactions.stream()
                 .filter(Objects::nonNull)
@@ -174,12 +170,11 @@ public class StatisticPanel extends JPanel {
 
         BigDecimal balance = BigDecimal.ZERO;
 
-        // Transaktionen chronologisch durchlaufen und Saldo aufbauen
+        
         for (Transaction t : sorted) {
             LocalDate date = t.getDate();
             BigDecimal amount = safeAmount(t.getAmount());
 
-            // Annahme: amount ist positiv. Income add, Expense subtract.
             if (t.getType() == TransactionType.Einnahmen) {
                 balance = balance.add(amount);
             } else if (t.getType() == TransactionType.Ausgaben) {
@@ -215,10 +210,6 @@ public class StatisticPanel extends JPanel {
 
         return wrapChart(chart);
     }
-
-    // ----------------------------
-    // Helpers
-    // ----------------------------
     private JComponent wrapChart(JFreeChart chart) {
         ChartPanel panel = new ChartPanel(chart);
         panel.setMouseWheelEnabled(true);

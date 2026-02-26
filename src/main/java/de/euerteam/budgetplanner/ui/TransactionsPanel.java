@@ -84,7 +84,7 @@ public class TransactionsPanel extends JPanel {
 
         configureDateSorting(incomeRowSorter);
         configureDateSorting(expenseRowSorter);
-        // hide object column in both tables
+
         incomeTable.getColumnModel().getColumn(5).setMinWidth(0);
         incomeTable.getColumnModel().getColumn(5).setMaxWidth(0);
         incomeTable.getColumnModel().getColumn(5).setWidth(0);
@@ -104,22 +104,18 @@ public class TransactionsPanel extends JPanel {
     private JScrollPane expenseScroll;
 
 
-
     public TransactionsPanel(TransactionService transactionService, CategoryManager categoryManager) {
         this.transactionService = transactionService;
         this.categoryManager = categoryManager;
         setLayout(new BorderLayout());
 
-        // Deutsches Datumsformat: TT.MM.JJJJ
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy").withLocale(Locale.GERMANY);
         dateField.setText(LocalDate.now().format(dateFormatter));
-        // Betragsfeld konfigurieren (wird mit deutschem Währungsformat initialisiert)
         amountField.setColumns(10);
         amountField.setValue(0.00);
         amountField.setToolTipText("Betrag (z.B. 1.234,56 €)");
         dateField.setToolTipText("Datum im Format TT.MM.JJJJ");
         
-        // Verwende eine vertikale Anordnung: Felder oben, Button + Guthaben darunter
         JPanel formPanel = new JPanel();
         formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
         formPanel.setBorder(BorderFactory.createEmptyBorder(16, 16, 12, 16));
@@ -142,7 +138,6 @@ public class TransactionsPanel extends JPanel {
     categoryComboBox.setToolTipText("Kategorie auswählen");
     categoryComboBox.setMaximumRowCount(12);
     fieldsPanel.add(categoryComboBox);
-    // Kategorien aus CategoryManager laden und bei Änderungen aktualisieren
     Runnable refreshMainCombo = () -> {
         categoryComboBox.removeAllItems();
         for (String c : categoryManager.getCategories()) categoryComboBox.addItem(c);
@@ -152,7 +147,6 @@ public class TransactionsPanel extends JPanel {
 
         JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton addButton = new JButton("Neue Transaktion");
-        // Sichtbarer machen: feste Größe, kontrastreiche Farben und kein Fokus-Highlight
         addButton.setPreferredSize(new Dimension(180, 30));
         addButton.setFocusable(false);
         addButton.setBackground(new Color(59, 89, 182));
@@ -161,7 +155,7 @@ public class TransactionsPanel extends JPanel {
         addButton.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
 
         controlsPanel.add(addButton);
-        controlsPanel.add(Box.createHorizontalStrut(20)); // Abstand
+        controlsPanel.add(Box.createHorizontalStrut(20));
         controlsPanel.add(balanceLabel);
 
        JButton editButton = new JButton("Bearbeiten");
@@ -186,36 +180,25 @@ public class TransactionsPanel extends JPanel {
 
         addButton.addActionListener(e -> showNewTransactionDialog());
 
-       
-
-        // Initiales Guthaben anzeigen
         updateBalance();
         
-
-        // Tabellen modern stylen
         styleTable(incomeTable);
         styleTable(expenseTable);
 
-        // Betrag-Spalte formatieren (rechts + farbig)
         installAmountRenderer(incomeTable);
         installAmountRenderer(expenseTable);
 
-        // Felder für direkte Eingabe nicht mehr direkt im Hauptpanel anzeigen.
-        // Stattdessen öffnet der Button ein Dialogfenster zur Eingabe.
         formPanel.add(controlsPanel);
         
-        // zwei Tabellen nebeneinander: Einnahmen | Ausgaben
         JPanel tablesPanel = new JPanel(new GridLayout(1, 2, 20, 20));
         tablesPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
         incomeScroll = new JScrollPane(incomeTable);
         expenseScroll = new JScrollPane(expenseTable);
 
-        // ScrollPane Border entfernen (wichtig!)
         incomeScroll.setBorder(null);
         expenseScroll.setBorder(null);
 
-        // Cards erzeugen
         JPanel incomeCard = createCard("Einnahmen", new Color(0, 160, 70), incomeScroll);
         JPanel expenseCard = createCard("Ausgaben", new Color(220, 60, 60), expenseScroll);
 
@@ -234,8 +217,6 @@ public class TransactionsPanel extends JPanel {
         searchPanel.add(clearSearchButton);
         clearSearchButton.addActionListener(e -> searchField.setText(""));
 
-        // `formPanel` enthält bereits `fieldsPanel` und die Steuerelemente (Button + Guthaben).
-        // Daher fügen wir nur das `searchPanel` im Süden hinzu und belassen `formPanel` im Norden.
         add(searchPanel, BorderLayout.SOUTH);
         
         searchField.getDocument().addDocumentListener(new DocumentListener() {
@@ -257,13 +238,11 @@ public class TransactionsPanel extends JPanel {
         table.setFillsViewportHeight(true);
         table.getTableHeader().setReorderingAllowed(false);
 
-        // Alle Zellen mittig ausrichten
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
         for (int i = 0; i < table.getColumnCount(); i++) {
             table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
         }
-        // Header ebenfalls mittig
         ((DefaultTableCellRenderer) table.getTableHeader().getDefaultRenderer())
                 .setHorizontalAlignment(SwingConstants.CENTER);
     }
@@ -277,7 +256,7 @@ private void installAmountRenderer(JTable table) {
             Component c = super.getTableCellRendererComponent(t, value, isSelected, hasFocus, row, column);
 
             if (!isSelected) {
-                Object typeObj = t.getValueAt(row, 2); // Typ-Spalte
+                Object typeObj = t.getValueAt(row, 2);
                 if (typeObj != null && typeObj.toString().equalsIgnoreCase("Einnahmen")) {
                     c.setForeground(new Color(0, 128, 0));
                 } else if (typeObj != null && typeObj.toString().equalsIgnoreCase("Ausgaben")) {
@@ -292,7 +271,6 @@ private void installAmountRenderer(JTable table) {
         }
     };
 
-    // Betrag-Spalte = 1
     table.getColumnModel().getColumn(1).setCellRenderer(renderer);
 }
 
@@ -305,11 +283,9 @@ private void installAmountRenderer(JTable table) {
         amount.setValue(0.00);
         JComboBox<TransactionType> type = new JComboBox<>(TransactionType.values());
 
-        // Kategorie-ComboBox mit dynamischen Kategorien
         JComboBox<String> category = new JComboBox<>(categoryManager.getCategories().toArray(new String[0]));
         installCategoryDeleteRenderer(category);
 
-        // "+" Button zum Hinzufügen neuer Kategorien
         JButton addCatBtn = new JButton("+");
         addCatBtn.setPreferredSize(new Dimension(45, 25));
         addCatBtn.setToolTipText("Neue Kategorie hinzufügen");
@@ -334,7 +310,6 @@ private void installAmountRenderer(JTable table) {
         panel.add(new JLabel("Typ:")); panel.add(type);
         panel.add(new JLabel("Kategorie:")); panel.add(catPanel);
 
-        // recurrence holder
         final boolean[] isRecurring = new boolean[] { false };
         final String[] recurFreq = new String[] { "MONTHLY" };
         final LocalDate[] recurEndDate = new LocalDate[] { null };
@@ -396,12 +371,10 @@ private void installAmountRenderer(JTable table) {
                 throw new IllegalArgumentException("Keine Kategorie ausgewählt");
             }
 
-            // create first transaction
             Transaction newT = new Transaction(desc, parsedAmount, ttype, parsedDate, cat);
             transactionService.addTransaction(newT);
             addTransactionToTable(newT);
 
-            // Budget-Warnung
             if (ttype == TransactionType.Ausgaben && !cat.isBlank()){
                 YearMonth month = YearMonth.from(parsedDate);
                 BigDecimal budget = transactionService.getBudgetForMonth(month, cat);
@@ -418,12 +391,10 @@ private void installAmountRenderer(JTable table) {
                 }
             }
 
-            // if recurring: generate follow-ups
             if (isRecurring[0]) {
                 LocalDate current = parsedDate;
                 int generated = 0;
                 while (true) {
-                    // advance
                     if (recurFreq[0].equals("MONTHLY")) current = current.plusMonths(1);
                     else current = current.plusYears(1);
 
@@ -451,7 +422,6 @@ private void installAmountRenderer(JTable table) {
             t.getDescription(),
             formattedAmount,
             t.getType(),
-            // Datum im deutschen Format anzeigen
             t.getDate().format(TABLE_DATE_FORMATTER),
             t.getCategory(),
             t
@@ -557,7 +527,6 @@ private void installAmountRenderer(JTable table) {
         installCategoryDeleteRenderer(category);
         category.setSelectedItem(oldT.getCategory());
 
-        // "+" Button zum Hinzufügen neuer Kategorien
         JButton addCatBtn = new JButton("+");
         addCatBtn.setPreferredSize(new Dimension(45, 25));
         addCatBtn.setToolTipText("Neue Kategorie hinzufügen");
@@ -618,7 +587,6 @@ private void installAmountRenderer(JTable table) {
                 JOptionPane.showMessageDialog(this, "Transaktion konnte nicht aktualisiert werden.", "Fehler", JOptionPane.ERROR_MESSAGE);
             }
 
-            // Wenn sich der Typ nicht geändert hat, aktualisiere die Zeile inplace.
             if (updatedTransaction.getType() == oldT.getType()) {
                 activeModel.setValueAt(updatedTransaction.getDescription(), modelRow, 0);
                 activeModel.setValueAt(currencyFormat.format(updatedTransaction.getAmount()), modelRow, 1);
@@ -630,7 +598,6 @@ private void installAmountRenderer(JTable table) {
                 if (activeTable == incomeTable) incomeRowSorter.sort();
                 else expenseRowSorter.sort();
             } else {
-                // Typ hat sich geändert: entferne aus altem Modell und füge in das andere ein.
                 activeModel.removeRow(modelRow);
                 addTransactionToTable(updatedTransaction);
             }
@@ -670,7 +637,6 @@ private void installAmountRenderer(JTable table) {
     private void updateSearchBalance() {
         NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.GERMANY);
         BigDecimal balance = BigDecimal.ZERO;
-        // sum visible rows in both tables
         JTable[] tables = new JTable[]{incomeTable, expenseTable};
         for (JTable t : tables) {
             for (int viewRow = 0; viewRow < t.getRowCount(); viewRow++) {
@@ -723,7 +689,6 @@ private void installAmountRenderer(JTable table) {
             java.io.File selectedFile = fileChooser.getSelectedFile();
             String filePath = selectedFile.getAbsolutePath();
 
-            // Stelle sicher, dass die Dateiendung ".csv" hat
             if (!filePath.toLowerCase().endsWith(".csv")) {
                 filePath += ".csv";
             }
@@ -751,7 +716,6 @@ private void installAmountRenderer(JTable table) {
 
             java.util.List<Transaction> importedTransactions = CsvPersistence.importFromCSV(filePath);
 
-            // Frage ob vorhandene Transaktionen gelöscht werden sollen
             int confirm = JOptionPane.showConfirmDialog(
                 this,
                 "Möchten Sie die vorhandenen Transaktionen ersetzen oder die importierten Transaktionen hinzufügen?\n\n" +
@@ -765,18 +729,15 @@ private void installAmountRenderer(JTable table) {
             }
 
             if (confirm == JOptionPane.YES_OPTION) {
-                // Ersetze alle Transaktionen
                 transactionService.setTransactions(importedTransactions);
                 incomeTableModel.setRowCount(0);
                 expenseTableModel.setRowCount(0);
             } else {
-                // Füge importierte Transaktionen hinzu
                 for (Transaction t : importedTransactions) {
                     transactionService.addTransaction(t);
                 }
             }
 
-            // Zeige alle importierten Transaktionen in den Tabellen
             for (Transaction t : importedTransactions) {
                 addTransactionToTable(t);
             }
@@ -798,10 +759,6 @@ private void installAmountRenderer(JTable table) {
         sorter.setSortsOnUpdates(true);
     }
 
-    /**
-     * Installiert einen Renderer mit "✕" neben jeder Kategorie im Dropdown und
-     * einen MouseListener der bei Klick auf "✕" eine Bestätigungsabfrage zeigt und die Kategorie löscht.
-     */
     private void installCategoryDeleteRenderer(JComboBox<String> comboBox) {
         final int X_BUTTON_WIDTH = 24;
 
@@ -811,7 +768,7 @@ private void installAmountRenderer(JTable table) {
             @Override
             public Component getListCellRendererComponent(JList<? extends String> list,
                     String value, int index, boolean isSelected, boolean cellHasFocus) {
-                // index == -1 → geschlossenes ComboBox-Feld: nur Text
+                
                 if (index == -1) {
                     return defaultRenderer.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 }
@@ -899,14 +856,12 @@ private JPanel createCard(String title, Color accentColor, JScrollPane content) 
     JPanel card = new JPanel(new BorderLayout());
     card.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-    // Innenbereich (weiße / dunkle Fläche)
     JPanel inner = new JPanel(new BorderLayout());
     inner.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(accentColor, 3), // Farb-Akzent
+            BorderFactory.createLineBorder(accentColor, 3),
             BorderFactory.createEmptyBorder(8, 8, 8, 8)
     ));
 
-    // Titel
     JLabel titleLabel = new JLabel(title);
     titleLabel.setFont(titleLabel.getFont().deriveFont(14f));
     titleLabel.setForeground(accentColor);
